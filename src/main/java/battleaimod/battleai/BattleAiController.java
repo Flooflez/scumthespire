@@ -7,6 +7,7 @@ import com.badlogic.gdx.math.MathUtils;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.helpers.CardLibrary;
+import com.megacrit.cardcrawl.monsters.AbstractMonster;
 import com.megacrit.cardcrawl.relics.AbstractRelic;
 import com.megacrit.cardcrawl.ui.panels.EnergyPanel;
 import ludicrousspeed.Controller;
@@ -89,43 +90,78 @@ public class BattleAiController implements Controller {
 
         int energy = EnergyPanel.totalCount;
 
-        while (!AbstractDungeon.player.hand.group.isEmpty()) {
-            AbstractCard card = AbstractDungeon.player.hand.group.get(0);
+        for(int i = 0; i < AbstractDungeon.player.hand.group.size(); i++){
+            AbstractCard card = AbstractDungeon.player.hand.group.get(i);
             int cost = card.costForTurn;
 
-            if (cost == -2) { //unplayable card
-                break;
+                if (cost == -2) { //unplayable card
+                    break;
+                }
+
+                if (cost == -1) { //x-cost card
+                    System.err.println("Choosing card: " + card.name);
+                    commands.add(createCommandForCard(card, i));
+                    break; //consumes all energy -> stop
+                }
+
+                // Normal cost
+                if (cost <= energy) {
+                    System.err.println("Choosing card: " + card.name);
+                    commands.add(createCommandForCard(card, i));
+                    energy -= cost;
+                } else {
+                    break; //can't afford -> stop
+                }
+
+                if (energy == 0) {
+                    break;
+                }
+
             }
 
-            if (cost == -1) { //x-cost card
-                System.err.println("Choosing card: " + card.name);
-                commands.add(new CardCommand(0, "PlayCard"));
-                break; //consumes all energy -> stop
-            }
+            System.err.println("Total cards: "+commands.size());
 
-            // Normal cost
-            if (cost <= energy) {
-                System.err.println("Choosing card: " + card.name);
-                commands.add(new CardCommand(0, "PlayCard"));
-                energy -= cost;
-            } else {
-                break; //can't afford -> stop
-            }
 
-            if (energy == 0) {
-                break;
-            }
+            commands.add(new EndCommand());
 
+
+            return commands;
         }
 
-        System.err.println("Total cards: "+commands.size());
 
 
-        commands.add(new EndCommand());
 
 
-        return commands;
+    private Command createCommandForCard(AbstractCard card, int cardIndex) {
+        if (card.target == AbstractCard.CardTarget.ENEMY ||
+                card.target == AbstractCard.CardTarget.SELF_AND_ENEMY) {
+
+            for (int j = 0; j < AbstractDungeon.getMonsters().monsters.size(); j++) {
+                AbstractMonster monster = AbstractDungeon.getMonsters().monsters.get(j);
+
+                if (!monster.isDeadOrEscaped() &&
+                        card.canUse(AbstractDungeon.player, monster)) {
+
+                    return new CardCommand(cardIndex, j, card.cardID);
+                }
+            }
+
+            return null; // no valid target
+        }
+
+        if (card.target == AbstractCard.CardTarget.ALL_ENEMY ||
+                card.target == AbstractCard.CardTarget.ALL ||
+                card.target == AbstractCard.CardTarget.SELF ||
+                card.target == AbstractCard.CardTarget.NONE) {
+
+            if (card.canUse(AbstractDungeon.player, null)) {
+                return new CardCommand(cardIndex, card.cardID);
+            }
+        }
+
+        return null;
     }
+
     private StateNode simulateSequence(List<Command> commands) {
         SaveState state = new SaveState();
         state.loadState(); //I think this loads the current game state into the SaveState object
@@ -169,6 +205,7 @@ public class BattleAiController implements Controller {
             System.out.println("Running simple sequence test...");
 
             List<Command> sequence = generateLeftToRight();
+
 
             SaveState start = new SaveState();
             start.loadState();

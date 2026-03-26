@@ -11,6 +11,7 @@ import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.helpers.SeedHelper;
 import ludicrousspeed.LudicrousSpeedMod;
 import ludicrousspeed.simulator.commands.*;
+import org.lwjgl.Sys;
 import savestate.SaveState;
 
 import java.io.*;
@@ -280,9 +281,12 @@ public class AiClient {
         ArrayList<Command> commandsFromServer = new ArrayList<>();
 
         for (JsonElement jsonCommand : jsonCommands) {
+            System.err.println("Command: " + jsonCommand.toString());
             Command toAdd = toCommand(jsonCommand);
             commandsFromServer.add(toAdd);
         }
+
+
 
         boolean complete = jsonMessage.get("type").getAsString()
                                       .equals(AiServer.commandListString);
