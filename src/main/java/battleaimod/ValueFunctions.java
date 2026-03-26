@@ -302,8 +302,8 @@ public class ValueFunctions {
         return optionalLizardTail.isPresent() ? 400 : 0;
     }
 
-    public static int getTotalDamageDealt(TurnNode turnNode) {
-        return ValueFunctions.getTotalMonsterHealth(turnNode.controller.startingState)
-                        - ValueFunctions.getTotalMonsterHealth(turnNode.startingState.saveState);
+    public static int getTotalDamageDealt(SaveState start, SaveState end) {
+        return ValueFunctions.getTotalMonsterHealth(start)
+                        - ValueFunctions.getTotalMonsterHealth(end);
     }
 }

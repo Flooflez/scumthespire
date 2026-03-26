@@ -13,6 +13,7 @@ import ludicrousspeed.Controller;
 import ludicrousspeed.simulator.commands.CardCommand;
 import ludicrousspeed.simulator.commands.Command;
 import ludicrousspeed.simulator.commands.EndCommand;
+import org.lwjgl.Sys;
 import savestate.CardState;
 import savestate.SaveState;
 import savestate.SaveStateMod;
@@ -88,42 +89,46 @@ public class BattleAiController implements Controller {
 
         int energy = EnergyPanel.totalCount;
 
-        for (int i = 0; i < AbstractDungeon.player.hand.group.size(); i++) {
-            AbstractCard card = AbstractDungeon.player.hand.group.get(i);
-
+        while (!AbstractDungeon.player.hand.group.isEmpty()) {
+            AbstractCard card = AbstractDungeon.player.hand.group.get(0);
             int cost = card.costForTurn;
 
-            if (cost == -2) { //-2 is unplayable
-                continue;
+            if (cost == -2) { //unplayable card
+                break;
             }
 
-            if (cost == -1) { //-1 is X cost cards
-                if (energy > 0) {
-                    commands.add(new CardCommand(i, "PlayCard"));
-                    energy = 0; // consumes all energy
-                }
-                break; // nothing else can be played after this
+            if (cost == -1) { //x-cost card
+                System.err.println("Choosing card: " + card.name);
+                commands.add(new CardCommand(0, "PlayCard"));
+                break; //consumes all energy -> stop
             }
 
-            // Normal cost cards
+            // Normal cost
             if (cost <= energy) {
-                commands.add(new CardCommand(i, "PlayCard"));
+                System.err.println("Choosing card: " + card.name);
+                commands.add(new CardCommand(0, "PlayCard"));
                 energy -= cost;
+            } else {
+                break; //can't afford -> stop
             }
 
             if (energy == 0) {
                 break;
             }
+
         }
+
+        System.err.println("Total cards: "+commands.size());
+
 
         commands.add(new EndCommand());
 
+
         return commands;
     }
-
     private StateNode simulateSequence(List<Command> commands) {
         SaveState state = new SaveState();
-        state.loadState();
+        state.loadState(); //I think this loads the current game state into the SaveState object
 
         StateNode root = new StateNode(null, null, this);
         root.saveState = state;
@@ -144,17 +149,17 @@ public class BattleAiController implements Controller {
             current = next;
         }
 
-        return current; // final state node
+        return current; //final state node
     }
 
-    private void printMetrics(StateNode end) {
-        System.out.println("SIMULATION RESULTS:");
-        System.out.println("Player HP: " + end.saveState.getPlayerHealth());
-        System.out.println("Damage taken: " + StateNode.getPlayerDamage(end));
-        System.out.println("Damage Dealt: " + ValueFunctions.getTotalDamageDealt(end.saveState));
-        System.out.println("Monster HP: " + ValueFunctions.getTotalMonsterHealth(end.saveState));
-        System.out.println("Score: " + ValueFunctions.getStateScore(end));
-        System.out.println("==========================");
+    private void printMetrics(StateNode start, StateNode end) {
+        System.err.println("SIMULATION RESULTS:");
+        System.err.println("Player HP: " + end.saveState.getPlayerHealth());
+        System.err.println("Damage taken: " + StateNode.getPlayerDamage(end));
+        System.err.println("Damage Dealt: " + ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState));
+        System.err.println("Monster HP: " + ValueFunctions.getTotalMonsterHealth(end.saveState));
+        System.err.println("Score: " + ValueFunctions.getStateScore(end));
+        System.err.println("==========================");
     }
 
     public void step() {
@@ -165,11 +170,16 @@ public class BattleAiController implements Controller {
 
             List<Command> sequence = generateLeftToRight();
 
-            StateNode result = simulateSequence(sequence);
+            SaveState start = new SaveState();
+            start.loadState();
+            StateNode startNode = new StateNode(null, null, this);
+            startNode.saveState = start;
 
-            printMetrics(result);
+            StateNode end = simulateSequence(sequence);
 
-            bestEnd = result; //This is the sequence that gets run
+            printMetrics(startNode, end);
+
+            bestEnd = end; //This is the sequence that gets run
             isDone = true;
 
             return;

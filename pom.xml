@@ -4,9 +4,9 @@
 
     <groupId>autoplay</groupId>
     <artifactId>BattleAiMod</artifactId>
-    <version>1.2.0</version>
+    <version>2.0.0</version>
     <packaging>jar</packaging>
-    <name>Battle Ai Mod Evolution</name>
+    <name>Battle Ai Mod Left to Right</name>
     <description>Server/Client setup allowing an AI to control the game</description>
 
 
