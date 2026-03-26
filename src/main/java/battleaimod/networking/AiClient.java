@@ -115,7 +115,8 @@ public class AiClient {
                     runRequest.addProperty("num_turns", numTurns);
                     runRequest.addProperty("command_file", commandFileName);
 
-                    out.writeUTF(runRequest.toString());
+                    out.writeUTF(runRequest.toString()); //this seems to be the line where search request is sent?
+
                 } catch (Exception e) {
                     e.printStackTrace();
                     throw e;
