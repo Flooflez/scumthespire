@@ -102,14 +102,14 @@ public class BattleAiController implements Controller {
 
                 if (cost == -1) { //x-cost card
                     System.err.println("Choosing card: " + card.name);
-                    commands.add(createCommandForCard(card, i));
+                    commands.add(createCommandForCard(card, 0));
                     break; //consumes all energy -> stop
                 }
 
                 // Normal cost
                 if (cost <= energy) {
                     System.err.println("Choosing card: " + card.name);
-                    commands.add(createCommandForCard(card, i));
+                    commands.add(createCommandForCard(card, 0));
                     energy -= cost;
                 } else {
                     break; //can't afford -> stop
@@ -198,6 +198,7 @@ public class BattleAiController implements Controller {
         if (!initialized) {
             initialized = true;
             isDone = false;
+            bestEnd = null;
 
             System.out.println("Running simple sequence test...");
 
