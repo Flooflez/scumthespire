@@ -68,6 +68,8 @@ public class BattleAiController implements Controller {
     private long startTime = 0;
     public int expectedDamage = 0;
 
+    private final boolean usingOldStep = true;
+
     public BattleAiController(SaveState state, int maxTurnLoads) {
         SaveStateMod.runTimes = new HashMap<>();
         targetTurn = 8;
@@ -100,14 +102,14 @@ public class BattleAiController implements Controller {
 
                 if (cost == -1) { //x-cost card
                     System.err.println("Choosing card: " + card.name);
-                    commands.add(createCommandForCard(card, 0));
+                    commands.add(createCommandForCard(card, i));
                     break; //consumes all energy -> stop
                 }
 
                 // Normal cost
                 if (cost <= energy) {
                     System.err.println("Choosing card: " + card.name);
-                    commands.add(createCommandForCard(card, 0));
+                    commands.add(createCommandForCard(card, i));
                     energy -= cost;
                 } else {
                     break; //can't afford -> stop
@@ -167,10 +169,9 @@ public class BattleAiController implements Controller {
 
         for (Command cmd : commands) {
             current.saveState.loadState();
+            StateNode next = new StateNode(current, cmd, this);
 
             cmd.execute();
-
-            StateNode next = new StateNode(current, cmd, this);
             next.saveState = new SaveState();
 
             current = next;
@@ -200,31 +201,29 @@ public class BattleAiController implements Controller {
 
             System.out.println("Running simple sequence test...");
 
-            // --- Match A* initialization ---
+            // Match A* init
             SaveStateMod.runTimes = new HashMap<>();
             CardState.resetFreeCards();
 
-            // 1. Create and load starting state
+            // 1. Load starting state
             SaveState startState = new SaveState();
             startState.loadState();
 
-            // 2. Create root node
             StateNode startNode = new StateNode(null, null, this);
-            startNode.saveState = startState;
+            startNode.saveState = startingState;
 
-            // Optional but consistent with A*
             startingHealth = startState.getPlayerHealth();
 
-            // 3. Generate command sequence
+            // 2. Generate abstract sequence
             List<Command> sequence = generateLeftToRight();
 
-            // 4. Simulate sequence FROM startNode
+            // 3. Simulate properly
             StateNode endNode = simulateSequence(startNode, sequence);
 
-            // 5. Print metrics
+            // 4. Metrics
             printMetrics(startNode, endNode);
 
-            // 6. Store result for replay
+            // 5. Store result
             bestEnd = endNode;
 
             isDone = true;
