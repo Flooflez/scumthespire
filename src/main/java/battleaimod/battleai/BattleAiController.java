@@ -3,6 +3,7 @@ package battleaimod.battleai;
 
 import basemod.BaseMod;
 import battleaimod.ValueFunctions;
+import battleaimod.utils.FileLogger;
 import com.badlogic.gdx.math.MathUtils;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
@@ -97,11 +98,12 @@ public class BattleAiController implements Controller {
             int cost = card.costForTurn;//iterate over all cards in hand
 
                 if (cost == -2) { //unplayable card
+                    FileLogger.log("Skipping unplayable card: " + card.name);
                     break;
                 }
 
                 if (cost == -1) { //x-cost card
-                    System.err.println("Choosing card: " + card.name);
+                    FileLogger.log("Choosing card: " + card.name);
                     commands.add(createCommandForCard(card, 0));
                     //we do 0 index because it is dynamic, e.g. after card at 0 is played, the cards shift so card at 1 is now also at 0.
                     break; //consumes all energy -> stop
@@ -109,7 +111,7 @@ public class BattleAiController implements Controller {
 
                 // Normal cost
                 if (cost <= energy) {
-                    System.err.println("Choosing card: " + card.name);
+                    FileLogger.log("Choosing card: " + card.name);
                     commands.add(createCommandForCard(card, 0));
                     energy -= cost;
                 } else {
@@ -122,7 +124,7 @@ public class BattleAiController implements Controller {
 
             }
 
-            System.err.println("Total cards: "+commands.size());
+            FileLogger.log("Total cards: "+commands.size());
 
 
             commands.add(new EndCommand());
@@ -167,9 +169,10 @@ public class BattleAiController implements Controller {
 
     private StateNode simulateSequence(StateNode startNode, List<Command> commands) {
         //This func SHOULD simulate commands and return a StateNode with the results of the simulation
+        //DOES NOT WORK!!
         StateNode current = startNode;
 
-        for (Command cmd : commands) { //no idea if this works, need to log properly
+        for (Command cmd : commands) {
             current.saveState.loadState();
             StateNode next = new StateNode(current, cmd, this);
 
@@ -184,13 +187,13 @@ public class BattleAiController implements Controller {
 
     private void printMetrics(StateNode start, StateNode end) {
         //need to make this log to file since console is not visible/freezes
-        System.err.println("SIMULATION RESULTS:");
-        System.err.println("Player HP: " + end.saveState.getPlayerHealth());
-        System.err.println("Damage taken: " + StateNode.getPlayerDamage(end));
-        System.err.println("Damage Dealt: " + ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState));
-        System.err.println("Monster HP: " + ValueFunctions.getTotalMonsterHealth(end.saveState));
-        System.err.println("Score: " + ValueFunctions.getStateScore(end));
-        System.err.println("==========================");
+        FileLogger.log("SIMULATION RESULTS:");
+        FileLogger.log("Player HP: " + end.saveState.getPlayerHealth());
+        FileLogger.log("Damage taken: " + StateNode.getPlayerDamage(end));
+        FileLogger.log("Damage Dealt: " + ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState));
+        FileLogger.log("Monster HP: " + ValueFunctions.getTotalMonsterHealth(end.saveState));
+        FileLogger.log("Score: " + ValueFunctions.getStateScore(end));
+        FileLogger.log("==========================");
     }
 
     public void step() {
