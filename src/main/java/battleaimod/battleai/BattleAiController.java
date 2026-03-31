@@ -14,7 +14,6 @@ import ludicrousspeed.Controller;
 import ludicrousspeed.simulator.commands.CardCommand;
 import ludicrousspeed.simulator.commands.Command;
 import ludicrousspeed.simulator.commands.EndCommand;
-import org.lwjgl.Sys;
 import savestate.CardState;
 import savestate.SaveState;
 import savestate.SaveStateMod;

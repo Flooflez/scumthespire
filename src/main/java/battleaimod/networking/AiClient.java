@@ -11,7 +11,6 @@ import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.helpers.SeedHelper;
 import ludicrousspeed.LudicrousSpeedMod;
 import ludicrousspeed.simulator.commands.*;
-import org.lwjgl.Sys;
 import savestate.SaveState;
 
 import java.io.*;
