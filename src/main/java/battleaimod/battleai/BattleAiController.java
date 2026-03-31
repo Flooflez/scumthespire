@@ -7,9 +7,13 @@ import com.badlogic.gdx.math.MathUtils;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.helpers.CardLibrary;
+import com.megacrit.cardcrawl.monsters.AbstractMonster;
 import com.megacrit.cardcrawl.relics.AbstractRelic;
+import com.megacrit.cardcrawl.ui.panels.EnergyPanel;
 import ludicrousspeed.Controller;
+import ludicrousspeed.simulator.commands.CardCommand;
 import ludicrousspeed.simulator.commands.Command;
+import ludicrousspeed.simulator.commands.EndCommand;
 import savestate.CardState;
 import savestate.SaveState;
 import savestate.SaveStateMod;
@@ -63,6 +67,8 @@ public class BattleAiController implements Controller {
     private long startTime = 0;
     public int expectedDamage = 0;
 
+    private final boolean usingOldStep = true;
+
     public BattleAiController(SaveState state, int maxTurnLoads) {
         SaveStateMod.runTimes = new HashMap<>();
         targetTurn = 8;
@@ -78,119 +84,156 @@ public class BattleAiController implements Controller {
         this.maxTurnLoads = maxTurnLoads;
     }
 
+    private List<Command> generateLeftToRight() {
+        List<Command> commands = new ArrayList<>();
+
+        AbstractDungeon.player.hand.refreshHandLayout();
+        //some state syncing stuff copied from original code
+
+        int energy = EnergyPanel.totalCount; //get starting player energy
+
+        for(int i = 0; i < AbstractDungeon.player.hand.group.size(); i++){
+            AbstractCard card = AbstractDungeon.player.hand.group.get(i);
+            int cost = card.costForTurn;//iterate over all cards in hand
+
+                if (cost == -2) { //unplayable card
+                    break;
+                }
+
+                if (cost == -1) { //x-cost card
+                    System.err.println("Choosing card: " + card.name);
+                    commands.add(createCommandForCard(card, 0));
+                    //we do 0 index because it is dynamic, e.g. after card at 0 is played, the cards shift so card at 1 is now also at 0.
+                    break; //consumes all energy -> stop
+                }
+
+                // Normal cost
+                if (cost <= energy) {
+                    System.err.println("Choosing card: " + card.name);
+                    commands.add(createCommandForCard(card, 0));
+                    energy -= cost;
+                } else {
+                    break; //can't afford -> stop
+                }
+
+                if (energy == 0) {
+                    break;
+                }
+
+            }
+
+            System.err.println("Total cards: "+commands.size());
+
+
+            commands.add(new EndCommand());
+
+
+            return commands;
+        }
+
+
+
+
+
+    private Command createCommandForCard(AbstractCard card, int cardIndex) {
+        if (card.target == AbstractCard.CardTarget.ENEMY ||
+                card.target == AbstractCard.CardTarget.SELF_AND_ENEMY) { //if card can target enemies
+
+            for (int j = 0; j < AbstractDungeon.getMonsters().monsters.size(); j++) {
+                AbstractMonster monster = AbstractDungeon.getMonsters().monsters.get(j);
+
+                if (!monster.isDeadOrEscaped() &&
+                        card.canUse(AbstractDungeon.player, monster)) {
+
+                    return new CardCommand(cardIndex, j, card.cardID);
+                }
+            }
+
+            return null; // no valid target
+        }
+
+        if (card.target == AbstractCard.CardTarget.ALL_ENEMY ||
+                card.target == AbstractCard.CardTarget.ALL ||
+                card.target == AbstractCard.CardTarget.SELF ||
+                card.target == AbstractCard.CardTarget.NONE) { //otherwise, just play with no target
+
+            if (card.canUse(AbstractDungeon.player, null)) {
+                return new CardCommand(cardIndex, card.cardID);
+            }
+        }
+
+        return null;
+    }
+
+    private StateNode simulateSequence(StateNode startNode, List<Command> commands) {
+        //This func SHOULD simulate commands and return a StateNode with the results of the simulation
+        StateNode current = startNode;
+
+        for (Command cmd : commands) { //no idea if this works, need to log properly
+            current.saveState.loadState();
+            StateNode next = new StateNode(current, cmd, this);
+
+            cmd.execute();
+            next.saveState = new SaveState();
+
+            current = next;
+        }
+
+        return current;
+    }
+
+    private void printMetrics(StateNode start, StateNode end) {
+        //need to make this log to file since console is not visible/freezes
+        System.err.println("SIMULATION RESULTS:");
+        System.err.println("Player HP: " + end.saveState.getPlayerHealth());
+        System.err.println("Damage taken: " + StateNode.getPlayerDamage(end));
+        System.err.println("Damage Dealt: " + ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState));
+        System.err.println("Monster HP: " + ValueFunctions.getTotalMonsterHealth(end.saveState));
+        System.err.println("Score: " + ValueFunctions.getStateScore(end));
+        System.err.println("==========================");
+    }
 
     public void step() {
         if (isDone) {
             return;
         }
+
         if (!initialized) {
-            TurnNode.nodeIndex = 0;
-            startTime = System.currentTimeMillis();
             initialized = true;
             isDone = false;
-            StateNode firstStateContainer = new StateNode(null, null, this);
-            startingHealth = startingState.getPlayerHealth();
-            firstStateContainer.saveState = startingState;
-            turns = new PriorityQueue<>();
-            startNode = new TurnNode(firstStateContainer, this, null);
-            turns.add(startNode);
+            bestEnd = null;
 
+            System.out.println("Running simple sequence test...");
+
+            // Match A* init
             SaveStateMod.runTimes = new HashMap<>();
             CardState.resetFreeCards();
-        }
 
-        if (curTurn == null || curTurn.isDone) {
-            if (turns.isEmpty() || turnsLoaded >= maxTurnLoads) {
-                if (bestEnd != null) {
-                    System.err.println("Found end at turn threshold, going into rerun");
-                    printRuntimeStats();
+            // 1. Load starting state
+            SaveState startState = new SaveState();
+            startState.loadState();
 
-                    isDone = true;
-                    return;
-                } else if (bestTurn != null || backupTurn != null) {
-                    if (bestTurn == null) {
-                        System.err.println("Loading for backup " + backupTurn);
-                        bestTurn = backupTurn;
-                    }
-                    System.err.println("Loading for turn load threshold, best turn: " + bestTurn);
-                    turnsLoaded = 0;
-                    turns.clear();
+            StateNode startNode = new StateNode(null, null, this);
+            startNode.saveState = startingState;
 
-                    int backStep = targetTurnJump / 2;
+            startingHealth = startState.getPlayerHealth();
 
-                    TurnNode backStepTurn = bestTurn;
-                    for (int i = 0; i < backStep; i++) {
-                        if (backStepTurn == null) {
-                            break;
-                        }
+            // 2. Generate abstract sequence
+            List<Command> sequence = generateLeftToRight();
 
-                        backStepTurn = backStepTurn.parent;
-                    }
+            // 3. Simulate properly
+            StateNode endNode = simulateSequence(startNode, sequence);
 
-                    if (backStepTurn != null && (committedTurn == null || backStepTurn.startingState.saveState.turn > committedTurn.startingState.saveState.turn)) {
-                        bestTurn = backStepTurn;
-                    }
+            // 4. Metrics
+            printMetrics(startNode, endNode);
 
-                    System.err.println("Backstepping to turn: " + bestTurn);
+            // 5. Store result
+            bestEnd = endNode;
 
-                    TurnNode toAdd = makeResetCopy(bestTurn);
-                    turns.add(toAdd);
-                    targetTurn = bestTurn.startingState.saveState.turn + targetTurnJump;
-                    toAdd.startingState.saveState.loadState();
-                    committedTurn = toAdd;
-                    bestTurn = null;
-                    backupTurn = null;
-                    deathNode = null;
-
-                    // TODO this is here to prevent playback errors
-                    bestEnd = null;
-
-                    return;
-                } else if (turns.isEmpty() || turnsLoaded >= maxTurnLoads * 10) {
-                    if (deathNode != null) {
-                        System.err.println("Sending back death turn");
-                        bestEnd = deathNode;
-                        isDone = true;
-                        return;
-                    }
-                }
-            }
-        }
-
-
-        while (!turns.isEmpty() && (curTurn == null || curTurn.isDone)) {
-            curTurn = turns.peek();
-
-            int turnNumber = curTurn.startingState.saveState.turn;
-
-            if (turnNumber >= targetTurn) {
-                if (bestTurn == null || curTurn.isBetterThan(bestTurn)) {
-                    bestTurn = curTurn;
-                }
-
-                addRuntime("turnsLoaded", 1);
-                curTurn = null;
-                ++turnsLoaded;
-                turns.poll();
-            } else {
-                if (curTurn.isDone) {
-                    turns.poll();
-                }
-            }
-        }
-
-        if (curTurn != null) {
-            long startTurnStep = System.currentTimeMillis();
-
-//            System.err.println("Stepping Turn " + curTurn.turnLabel);
-            boolean reachedNewTurn = curTurn.step();
-            if (reachedNewTurn) {
-                curTurn = null;
-            }
-
-            addRuntime("Battle AI TurnNode Step", System.currentTimeMillis() - startTurnStep);
+            isDone = true;
         }
     }
+
 
     private static TurnNode makeResetCopy(TurnNode node) {
         StateNode stateNode = new StateNode(node.startingState.parent, node.startingState.lastCommand, node.controller);
@@ -327,6 +370,119 @@ public class BattleAiController implements Controller {
         } catch (IOException e) {
             System.err.println("file writing failed");
             e.printStackTrace();
+        }
+    }
+
+    public void oldStep() {
+        if (isDone) {
+            return;
+        }
+        if (!initialized) {
+            TurnNode.nodeIndex = 0;
+            startTime = System.currentTimeMillis();
+            initialized = true;
+            isDone = false;
+            StateNode firstStateContainer = new StateNode(null, null, this);
+            startingHealth = startingState.getPlayerHealth();
+            firstStateContainer.saveState = startingState;
+            turns = new PriorityQueue<>();
+            startNode = new TurnNode(firstStateContainer, this, null);
+            turns.add(startNode);
+
+            SaveStateMod.runTimes = new HashMap<>();
+            CardState.resetFreeCards();
+        }
+
+        if (curTurn == null || curTurn.isDone) {
+            if (turns.isEmpty() || turnsLoaded >= maxTurnLoads) {
+                if (bestEnd != null) {
+                    System.err.println("Found end at turn threshold, going into rerun");
+                    printRuntimeStats();
+
+                    isDone = true;
+                    return;
+                } else if (bestTurn != null || backupTurn != null) {
+                    if (bestTurn == null) {
+                        System.err.println("Loading for backup " + backupTurn);
+                        bestTurn = backupTurn;
+                    }
+                    System.err.println("Loading for turn load threshold, best turn: " + bestTurn);
+                    turnsLoaded = 0;
+                    turns.clear();
+
+                    int backStep = targetTurnJump / 2;
+
+                    TurnNode backStepTurn = bestTurn;
+                    for (int i = 0; i < backStep; i++) {
+                        if (backStepTurn == null) {
+                            break;
+                        }
+
+                        backStepTurn = backStepTurn.parent;
+                    }
+
+                    if (backStepTurn != null && (committedTurn == null || backStepTurn.startingState.saveState.turn > committedTurn.startingState.saveState.turn)) {
+                        bestTurn = backStepTurn;
+                    }
+
+                    System.err.println("Backstepping to turn: " + bestTurn);
+
+                    TurnNode toAdd = makeResetCopy(bestTurn);
+                    turns.add(toAdd);
+                    targetTurn = bestTurn.startingState.saveState.turn + targetTurnJump;
+                    toAdd.startingState.saveState.loadState();
+                    committedTurn = toAdd;
+                    bestTurn = null;
+                    backupTurn = null;
+                    deathNode = null;
+
+                    // TODO this is here to prevent playback errors
+                    bestEnd = null;
+
+                    return;
+                } else if (turns.isEmpty() || turnsLoaded >= maxTurnLoads * 10) {
+                    if (deathNode != null) {
+                        System.err.println("Sending back death turn");
+                        bestEnd = deathNode;
+                        isDone = true;
+                        return;
+                    }
+                }
+            }
+        }
+
+
+        while (!turns.isEmpty() && (curTurn == null || curTurn.isDone)) {
+            curTurn = turns.peek();
+
+            int turnNumber = curTurn.startingState.saveState.turn;
+
+            if (turnNumber >= targetTurn) {
+                if (bestTurn == null || curTurn.isBetterThan(bestTurn)) {
+                    bestTurn = curTurn;
+                }
+
+                addRuntime("turnsLoaded", 1);
+                curTurn = null;
+                ++turnsLoaded;
+                turns.poll();
+            } else {
+                if (curTurn.isDone) {
+                    turns.poll();
+                }
+            }
+        }
+
+        if (curTurn != null) {
+            long startTurnStep = System.currentTimeMillis();
+
+//            System.err.println("Stepping Turn " + curTurn.turnLabel);
+            boolean reachedNewTurn = curTurn.step();
+            if (reachedNewTurn) {
+                curTurn = null;
+            }
+
+            addRuntime("Battle AI TurnNode Step", System.currentTimeMillis() - startTurnStep);
         }
     }
 }

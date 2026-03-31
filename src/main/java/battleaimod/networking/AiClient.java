@@ -115,7 +115,8 @@ public class AiClient {
                     runRequest.addProperty("num_turns", numTurns);
                     runRequest.addProperty("command_file", commandFileName);
 
-                    out.writeUTF(runRequest.toString());
+                    out.writeUTF(runRequest.toString()); //this seems to be the line where search request is sent?
+
                 } catch (Exception e) {
                     e.printStackTrace();
                     throw e;
@@ -190,45 +191,77 @@ public class AiClient {
                 .getAsJsonObject();
         String type = commandObject.get("type").getAsString();
         String commandString = commandObject.toString();
-
-        if (type.equals("CARD")) {
-            if (jsonElement.getAsJsonObject().has("state")) {
-                return new CardCommand(commandString, jsonElement.getAsJsonObject().get("state")
-                                                                 .getAsString());
-            }
-            return new CardCommand(commandString);
-        } else if (type.equals("POTION")) {
-            if (jsonElement.getAsJsonObject().has("state")) {
-                return new PotionCommand(commandString, jsonElement.getAsJsonObject().get("state")
-                                                                   .getAsString());
-            }
-            return new PotionCommand(commandString);
-        } else if (type.equals("END")) {
-            if (jsonElement.getAsJsonObject().has("state")) {
-                return new EndCommand(commandString, jsonElement.getAsJsonObject().get("state")
-                                                                .getAsString());
-            }
-            return new EndCommand(commandString);
-        } else if (type.equals("HAND_SELECT")) {
-            if (jsonElement.getAsJsonObject().has("state")) {
-                return new HandSelectCommand(commandString, jsonElement.getAsJsonObject()
-                                                                       .get("state")
-                                                                       .getAsString());
-            }
-            return new HandSelectCommand(commandString);
-        } else if (type.equals("HAND_SELECT_CONFIRM")) {
-            if (jsonElement.getAsJsonObject().has("state")) {
-                return new HandSelectConfirmCommand(jsonElement.getAsJsonObject().get("state")
-                                                               .getAsString());
-            }
-            return HandSelectConfirmCommand.INSTANCE;
-        } else if (type.equals("GRID_SELECT")) {
-            return new GridSelectCommand(commandString);
-        } else if (type.equals("GRID_SELECT_CONFIRM")) {
-            return GridSelectConfrimCommand.INSTANCE;
-        } else if (type.equals("CARD_REWARD_SELECT")) {
-            return new CardRewardSelectCommand(commandString);
+        switch (type) {
+            case "CARD":
+                if (jsonElement.getAsJsonObject().has("state")) {
+                    return new CardCommand(commandString);
+                }
+                return new CardCommand(commandString);
+            case "POTION":
+                if (jsonElement.getAsJsonObject().has("state")) {
+                    return new PotionCommand(commandString);
+                }
+                return new PotionCommand(commandString);
+            case "END":
+                if (jsonElement.getAsJsonObject().has("state")) {
+                    return new EndCommand(commandString);
+                }
+                return new EndCommand(commandString);
+            case "HAND_SELECT":
+                if (jsonElement.getAsJsonObject().has("state")) {
+                    return new HandSelectCommand(commandString);
+                }
+                return new HandSelectCommand(commandString);
+            case "HAND_SELECT_CONFIRM":
+                if (jsonElement.getAsJsonObject().has("state")) {
+                    return new HandSelectConfirmCommand(null);
+                }
+                return HandSelectConfirmCommand.INSTANCE;
+            case "GRID_SELECT":
+                return new GridSelectCommand(commandString);
+            case "GRID_SELECT_CONFIRM":
+                return GridSelectConfrimCommand.INSTANCE;
+            case "CARD_REWARD_SELECT":
+                return new CardRewardSelectCommand(commandString);
         }
+//        if (type.equals("CARD")) {
+//            if (jsonElement.getAsJsonObject().has("state")) {
+//                return new CardCommand(commandString, jsonElement.getAsJsonObject().get("state")
+//                                                                 .getAsString());
+//            }
+//            return new CardCommand(commandString);
+//        } else if (type.equals("POTION")) {
+//            if (jsonElement.getAsJsonObject().has("state")) {
+//                return new PotionCommand(commandString, jsonElement.getAsJsonObject().get("state")
+//                                                                   .getAsString());
+//            }
+//            return new PotionCommand(commandString);
+//        } else if (type.equals("END")) {
+//            if (jsonElement.getAsJsonObject().has("state")) {
+//                return new EndCommand(commandString, jsonElement.getAsJsonObject().get("state")
+//                                                                .getAsString());
+//            }
+//            return new EndCommand(commandString);
+//        } else if (type.equals("HAND_SELECT")) {
+//            if (jsonElement.getAsJsonObject().has("state")) {
+//                return new HandSelectCommand(commandString, jsonElement.getAsJsonObject()
+//                                                                       .get("state")
+//                                                                       .getAsString());
+//            }
+//            return new HandSelectCommand(commandString);
+//        } else if (type.equals("HAND_SELECT_CONFIRM")) {
+//            if (jsonElement.getAsJsonObject().has("state")) {
+//                return new HandSelectConfirmCommand(jsonElement.getAsJsonObject().get("state")
+//                                                               .getAsString());
+//            }
+//            return HandSelectConfirmCommand.INSTANCE;
+//        } else if (type.equals("GRID_SELECT")) {
+//            return new GridSelectCommand(commandString);
+//        } else if (type.equals("GRID_SELECT_CONFIRM")) {
+//            return GridSelectConfrimCommand.INSTANCE;
+//        } else if (type.equals("CARD_REWARD_SELECT")) {
+//            return new CardRewardSelectCommand(commandString);
+//        }
 
         return null;
     }
@@ -279,9 +312,12 @@ public class AiClient {
         ArrayList<Command> commandsFromServer = new ArrayList<>();
 
         for (JsonElement jsonCommand : jsonCommands) {
+            System.err.println("Command: " + jsonCommand.toString());
             Command toAdd = toCommand(jsonCommand);
             commandsFromServer.add(toAdd);
         }
+
+
 
         boolean complete = jsonMessage.get("type").getAsString()
                                       .equals(AiServer.commandListString);
@@ -304,4 +340,6 @@ public class AiClient {
                     .updateBestPath(commandsFromServer, complete);
         }
     }
+
+
 }
