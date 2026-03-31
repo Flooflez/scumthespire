@@ -89,12 +89,13 @@ public class BattleAiController implements Controller {
         List<Command> commands = new ArrayList<>();
 
         AbstractDungeon.player.hand.refreshHandLayout();
+        //some state syncing stuff copied from original code
 
-        int energy = EnergyPanel.totalCount;
+        int energy = EnergyPanel.totalCount; //get starting player energy
 
         for(int i = 0; i < AbstractDungeon.player.hand.group.size(); i++){
             AbstractCard card = AbstractDungeon.player.hand.group.get(i);
-            int cost = card.costForTurn;
+            int cost = card.costForTurn;//iterate over all cards in hand
 
                 if (cost == -2) { //unplayable card
                     break;
@@ -103,6 +104,7 @@ public class BattleAiController implements Controller {
                 if (cost == -1) { //x-cost card
                     System.err.println("Choosing card: " + card.name);
                     commands.add(createCommandForCard(card, 0));
+                    //we do 0 index because it is dynamic, e.g. after card at 0 is played, the cards shift so card at 1 is now also at 0.
                     break; //consumes all energy -> stop
                 }
 
@@ -136,7 +138,7 @@ public class BattleAiController implements Controller {
 
     private Command createCommandForCard(AbstractCard card, int cardIndex) {
         if (card.target == AbstractCard.CardTarget.ENEMY ||
-                card.target == AbstractCard.CardTarget.SELF_AND_ENEMY) {
+                card.target == AbstractCard.CardTarget.SELF_AND_ENEMY) { //if card can target enemies
 
             for (int j = 0; j < AbstractDungeon.getMonsters().monsters.size(); j++) {
                 AbstractMonster monster = AbstractDungeon.getMonsters().monsters.get(j);
@@ -154,7 +156,7 @@ public class BattleAiController implements Controller {
         if (card.target == AbstractCard.CardTarget.ALL_ENEMY ||
                 card.target == AbstractCard.CardTarget.ALL ||
                 card.target == AbstractCard.CardTarget.SELF ||
-                card.target == AbstractCard.CardTarget.NONE) {
+                card.target == AbstractCard.CardTarget.NONE) { //otherwise, just play with no target
 
             if (card.canUse(AbstractDungeon.player, null)) {
                 return new CardCommand(cardIndex, card.cardID);
@@ -165,9 +167,10 @@ public class BattleAiController implements Controller {
     }
 
     private StateNode simulateSequence(StateNode startNode, List<Command> commands) {
+        //This func SHOULD simulate commands and return a StateNode with the results of the simulation
         StateNode current = startNode;
 
-        for (Command cmd : commands) {
+        for (Command cmd : commands) { //no idea if this works, need to log properly
             current.saveState.loadState();
             StateNode next = new StateNode(current, cmd, this);
 
@@ -181,6 +184,7 @@ public class BattleAiController implements Controller {
     }
 
     private void printMetrics(StateNode start, StateNode end) {
+        //need to make this log to file since console is not visible/freezes
         System.err.println("SIMULATION RESULTS:");
         System.err.println("Player HP: " + end.saveState.getPlayerHealth());
         System.err.println("Damage taken: " + StateNode.getPlayerDamage(end));
