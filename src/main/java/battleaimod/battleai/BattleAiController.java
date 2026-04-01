@@ -12,6 +12,7 @@ import com.megacrit.cardcrawl.monsters.AbstractMonster;
 import com.megacrit.cardcrawl.relics.AbstractRelic;
 import com.megacrit.cardcrawl.ui.panels.EnergyPanel;
 import ludicrousspeed.Controller;
+import ludicrousspeed.simulator.ActionSimulator;
 import ludicrousspeed.simulator.commands.CardCommand;
 import ludicrousspeed.simulator.commands.Command;
 import ludicrousspeed.simulator.commands.EndCommand;
@@ -147,7 +148,7 @@ public class BattleAiController implements Controller {
                 if (!monster.isDeadOrEscaped() &&
                         card.canUse(AbstractDungeon.player, monster)) {
 
-                    return new CardCommand(cardIndex, j, card.cardID);
+                    return new CardCommand(cardIndex, j, card.cardID + " "+ card.name);
                 }
             }
 
@@ -160,7 +161,7 @@ public class BattleAiController implements Controller {
                 card.target == AbstractCard.CardTarget.NONE) { //otherwise, just play with no target
 
             if (card.canUse(AbstractDungeon.player, null)) {
-                return new CardCommand(cardIndex, card.cardID);
+                return new CardCommand(cardIndex, card.cardID+" "+ card.name);
             }
         }
 
@@ -171,19 +172,63 @@ public class BattleAiController implements Controller {
         //This func SHOULD simulate commands and return a StateNode with the results of the simulation
         //DOES NOT WORK!!
         StateNode current = startNode;
+        current.saveState.loadState();
+        FileLogger.log("Simulating...");
+
+
 
         for (Command cmd : commands) {
-            current.saveState.loadState();
             StateNode next = new StateNode(current, cmd, this);
 
             cmd.execute();
+//            while (!AbstractDungeon.actionManager.isEmpty() ||
+//                    AbstractDungeon.actionManager.currentAction != null) {
+//
+//            }
+            FileLogger.log("calling ActionManageUpdate");
+            ActionSimulator.ActionManageUpdate();
+            ActionSimulator.updateMonsters();
+            ActionSimulator.roomUpdate();
             next.saveState = new SaveState();
+
+            FileLogger.log("Running command: " + cmd);
+            FileLogger.log("Monster HP: " + ValueFunctions.getTotalMonsterHealth(next.saveState));
 
             current = next;
         }
 
+        FileLogger.log("Finished sim");
         return current;
     }
+
+    private StateNode simulateSequenceV2(StateNode startNode, List<Command> commands) {
+        StateNode current = startNode;
+        current.saveState.loadState();
+        FileLogger.log("Simulating...");
+
+        for (Command cmd : commands) {
+            StateNode next = new StateNode(current, cmd, this);
+            next.saveState = current.saveState;
+
+            while (!next.isDone()) { //trying to use step() like A*
+                Command commandToExecute = next.step();
+                if (commandToExecute != null) {
+                    commandToExecute.execute();
+                }
+            }
+
+            next.saveState = new SaveState();
+            FileLogger.log("Running command: " + cmd);
+            FileLogger.log("Monster HP: " + ValueFunctions.getTotalMonsterHealth(next.saveState));
+
+            current = next;
+        }
+
+        FileLogger.log("Finished sim");
+        return current;
+    }
+
+
 
     private void printMetrics(StateNode start, StateNode end) {
         //need to make this log to file since console is not visible/freezes
@@ -206,7 +251,8 @@ public class BattleAiController implements Controller {
             isDone = false;
             bestEnd = null;
 
-            System.out.println("Running simple sequence test...");
+            //System.out.println("Running simple sequence test...");
+            FileLogger.log("Phase (0==waiting, 1==executing): "+String.valueOf(AbstractDungeon.actionManager.phase));
 
             // Match A* init
             SaveStateMod.runTimes = new HashMap<>();
@@ -225,7 +271,7 @@ public class BattleAiController implements Controller {
             List<Command> sequence = generateLeftToRight();
 
             // 3. Simulate properly
-            StateNode endNode = simulateSequence(startNode, sequence);
+            StateNode endNode = simulateSequenceV2(startNode, sequence);
 
             // 4. Metrics
             printMetrics(startNode, endNode);
