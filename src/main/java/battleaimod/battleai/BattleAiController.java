@@ -12,6 +12,7 @@ import com.megacrit.cardcrawl.monsters.AbstractMonster;
 import com.megacrit.cardcrawl.relics.AbstractRelic;
 import com.megacrit.cardcrawl.ui.panels.EnergyPanel;
 import ludicrousspeed.Controller;
+import ludicrousspeed.LudicrousSpeedMod;
 import ludicrousspeed.simulator.ActionSimulator;
 import ludicrousspeed.simulator.commands.CardCommand;
 import ludicrousspeed.simulator.commands.Command;
@@ -54,6 +55,11 @@ public class BattleAiController implements Controller {
     public boolean isDone = false;
     public final SaveState startingState;
     private boolean initialized;
+
+    //evolution stuff
+    private Queue<Command> sequence;
+    private StateNode current;
+    private StateNode startStateNode;
 
     // EXPERIMENTAL
     private TurnNode startNode = null;
@@ -202,24 +208,32 @@ public class BattleAiController implements Controller {
     }
 
     private StateNode simulateSequenceV2(StateNode startNode, List<Command> commands) {
+        FileLogger.log("Simulating...");
+
         StateNode current = startNode;
         current.saveState.loadState();
-        FileLogger.log("Simulating...");
+
+        FileLogger.log("Starting Monster HP: " + AbstractDungeon.getMonsters().monsters.get(0).currentHealth);
 
         for (Command cmd : commands) {
             StateNode next = new StateNode(current, cmd, this);
-            next.saveState = current.saveState;
+            next.saveState = new SaveState();  // Capture state before executing
+            next.saveState.loadState();  // Load it to set up the world
 
-            while (!next.isDone()) { //trying to use step() like A*
+            // Now execute and process
+            cmd.execute();
+
+            // Use StateNode.step() to handle action processing
+            while (!next.isDone()) {
                 Command commandToExecute = next.step();
+                FileLogger.log("StateNode.step() returned: " + (commandToExecute != null ? commandToExecute.toString() : "null"));
                 if (commandToExecute != null) {
                     commandToExecute.execute();
                 }
             }
 
-            next.saveState = new SaveState();
             FileLogger.log("Running command: " + cmd);
-            FileLogger.log("Monster HP: " + ValueFunctions.getTotalMonsterHealth(next.saveState));
+            FileLogger.log("Monster HP: " + AbstractDungeon.getMonsters().monsters.get(0).currentHealth);
 
             current = next;
         }
@@ -227,7 +241,6 @@ public class BattleAiController implements Controller {
         FileLogger.log("Finished sim");
         return current;
     }
-
 
 
     private void printMetrics(StateNode start, StateNode end) {
@@ -252,6 +265,7 @@ public class BattleAiController implements Controller {
             bestEnd = null;
 
             //System.out.println("Running simple sequence test...");
+            FileLogger.log("PlaidMode: "+LudicrousSpeedMod.plaidMode);
             FileLogger.log("Phase (0==waiting, 1==executing): "+String.valueOf(AbstractDungeon.actionManager.phase));
 
             // Match A* init
@@ -262,24 +276,42 @@ public class BattleAiController implements Controller {
             SaveState startState = new SaveState();
             startState.loadState();
 
-            StateNode startNode = new StateNode(null, null, this);
-            startNode.saveState = startingState;
+            startStateNode = new StateNode(null, null, this);
+            startStateNode.saveState = startingState;
+            current = startStateNode;
 
             startingHealth = startState.getPlayerHealth();
 
-            // 2. Generate abstract sequence
-            List<Command> sequence = generateLeftToRight();
+            // 2. Generate sequence
+            sequence = new ArrayDeque<>(generateLeftToRight());;
 
             // 3. Simulate properly
-            StateNode endNode = simulateSequenceV2(startNode, sequence);
+            //StateNode endNode = simulateSequenceV2(startStateNode, sequence);
 
             // 4. Metrics
-            printMetrics(startNode, endNode);
+            //printMetrics(startStateNode, endNode);
 
             // 5. Store result
-            bestEnd = endNode;
+            //bestEnd = endNode;
 
-            isDone = true;
+
+        }
+        else{
+
+            if(!sequence.isEmpty()){
+                Command cmd = sequence.poll();
+                StateNode next = new StateNode(current, cmd, this);
+                cmd.execute();
+                next.saveState = new SaveState();
+                current = next;
+            }
+            else{
+                bestEnd = current;
+                printMetrics(startStateNode, bestEnd);
+                isDone = true;
+                initialized = false;
+            }
+
         }
     }
 
