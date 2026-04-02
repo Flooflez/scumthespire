@@ -5,6 +5,7 @@ import basemod.BaseMod;
 import battleaimod.ValueFunctions;
 import battleaimod.utils.FileLogger;
 import com.badlogic.gdx.math.MathUtils;
+import com.megacrit.cardcrawl.actions.GameActionManager;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.helpers.CardLibrary;
@@ -279,6 +280,7 @@ public class BattleAiController implements Controller {
             startStateNode = new StateNode(null, null, this);
             startStateNode.saveState = startingState;
             current = startStateNode;
+            FileLogger.log("turns: " + GameActionManager.turn + " vs " + current.saveState.turn);
 
             startingHealth = startState.getPlayerHealth();
 
@@ -297,7 +299,6 @@ public class BattleAiController implements Controller {
 
         }
         else{
-
             if(!sequence.isEmpty()){
                 Command cmd = sequence.poll();
                 StateNode next = new StateNode(current, cmd, this);
@@ -306,6 +307,11 @@ public class BattleAiController implements Controller {
                 current = next;
             }
             else{
+                if(!isNewTurn(current)){
+                    FileLogger.log("not new turn: " + GameActionManager.turn + " vs " + current.saveState.turn);
+                    return;
+                }
+                FileLogger.log("new turn: " + GameActionManager.turn + " vs " + current.saveState.turn);
                 bestEnd = current;
                 printMetrics(startStateNode, bestEnd);
                 isDone = true;
@@ -315,6 +321,10 @@ public class BattleAiController implements Controller {
         }
     }
 
+
+    private boolean isNewTurn(StateNode turnState) {
+        return (GameActionManager.turn > turnState.saveState.turn);
+    }
 
     private static TurnNode makeResetCopy(TurnNode node) {
         StateNode stateNode = new StateNode(node.startingState.parent, node.startingState.lastCommand, node.controller);
