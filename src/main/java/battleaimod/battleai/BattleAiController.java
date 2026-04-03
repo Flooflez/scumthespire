@@ -189,10 +189,10 @@ public class BattleAiController implements Controller {
 
 
     public void step() {
-        if(usingOldStep){
-            oldStep();
-            return;
-        }
+//        if(usingOldStep){
+//            oldStep();
+//            return;
+//        }
         if (isDone) {
             return;
         }
