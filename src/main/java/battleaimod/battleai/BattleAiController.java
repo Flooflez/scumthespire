@@ -175,74 +175,6 @@ public class BattleAiController implements Controller {
         return null;
     }
 
-    private StateNode simulateSequence(StateNode startNode, List<Command> commands) {
-        //This func SHOULD simulate commands and return a StateNode with the results of the simulation
-        //DOES NOT WORK!!
-        StateNode current = startNode;
-        current.saveState.loadState();
-        FileLogger.log("Simulating...");
-
-
-
-        for (Command cmd : commands) {
-            StateNode next = new StateNode(current, cmd, this);
-
-            cmd.execute();
-//            while (!AbstractDungeon.actionManager.isEmpty() ||
-//                    AbstractDungeon.actionManager.currentAction != null) {
-//
-//            }
-            FileLogger.log("calling ActionManageUpdate");
-            ActionSimulator.ActionManageUpdate();
-            ActionSimulator.updateMonsters();
-            ActionSimulator.roomUpdate();
-            next.saveState = new SaveState();
-
-            FileLogger.log("Running command: " + cmd);
-            FileLogger.log("Monster HP: " + ValueFunctions.getTotalMonsterHealth(next.saveState));
-
-            current = next;
-        }
-
-        FileLogger.log("Finished sim");
-        return current;
-    }
-
-    private StateNode simulateSequenceV2(StateNode startNode, List<Command> commands) {
-        FileLogger.log("Simulating...");
-
-        StateNode current = startNode;
-        current.saveState.loadState();
-
-        FileLogger.log("Starting Monster HP: " + AbstractDungeon.getMonsters().monsters.get(0).currentHealth);
-
-        for (Command cmd : commands) {
-            StateNode next = new StateNode(current, cmd, this);
-            next.saveState = new SaveState();  // Capture state before executing
-            next.saveState.loadState();  // Load it to set up the world
-
-            // Now execute and process
-            cmd.execute();
-
-            // Use StateNode.step() to handle action processing
-            while (!next.isDone()) {
-                Command commandToExecute = next.step();
-                FileLogger.log("StateNode.step() returned: " + (commandToExecute != null ? commandToExecute.toString() : "null"));
-                if (commandToExecute != null) {
-                    commandToExecute.execute();
-                }
-            }
-
-            FileLogger.log("Running command: " + cmd);
-            FileLogger.log("Monster HP: " + AbstractDungeon.getMonsters().monsters.get(0).currentHealth);
-
-            current = next;
-        }
-
-        FileLogger.log("Finished sim");
-        return current;
-    }
-
 
     private void printMetrics(StateNode start, StateNode end) {
         //need to make this log to file since console is not visible/freezes
@@ -255,7 +187,12 @@ public class BattleAiController implements Controller {
         FileLogger.log("==========================");
     }
 
+
     public void step() {
+        if(usingOldStep){
+            oldStep();
+            return;
+        }
         if (isDone) {
             return;
         }
@@ -267,7 +204,7 @@ public class BattleAiController implements Controller {
 
             //System.out.println("Running simple sequence test...");
             FileLogger.log("PlaidMode: "+LudicrousSpeedMod.plaidMode);
-            FileLogger.log("Phase (0==waiting, 1==executing): "+String.valueOf(AbstractDungeon.actionManager.phase));
+            FileLogger.log("Phase: "+String.valueOf(AbstractDungeon.actionManager.phase));
 
             // Match A* init
             SaveStateMod.runTimes = new HashMap<>();
@@ -287,15 +224,6 @@ public class BattleAiController implements Controller {
             // 2. Generate sequence
             sequence = new ArrayDeque<>(generateLeftToRight());;
 
-            // 3. Simulate properly
-            //StateNode endNode = simulateSequenceV2(startStateNode, sequence);
-
-            // 4. Metrics
-            //printMetrics(startStateNode, endNode);
-
-            // 5. Store result
-            //bestEnd = endNode;
-
 
         }
         else{
@@ -311,7 +239,15 @@ public class BattleAiController implements Controller {
                     FileLogger.log("not new turn: " + GameActionManager.turn + " vs " + current.saveState.turn);
                     return;
                 }
+
+
                 FileLogger.log("new turn: " + GameActionManager.turn + " vs " + current.saveState.turn);
+                String hand = AbstractDungeon.player.hand.group.stream().map(card -> card.name)
+                                                                    .collect(Collectors
+                                                                           .joining(","));
+                FileLogger.log("new hand: " + hand);
+                current.saveState.loadState();
+
                 bestEnd = current;
                 printMetrics(startStateNode, bestEnd);
                 isDone = true;
@@ -545,6 +481,9 @@ public class BattleAiController implements Controller {
 
         while (!turns.isEmpty() && (curTurn == null || curTurn.isDone)) {
             curTurn = turns.peek();
+            FileLogger.log("new turn: " + curTurn.startingState.saveState.turn);
+            //printMetrics(startNode.startingState, curTurn.startingState);
+            FileLogger.log("Damage taken: " + StateNode.getPlayerDamage(curTurn.startingState));
 
             int turnNumber = curTurn.startingState.saveState.turn;
 
