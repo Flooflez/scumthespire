@@ -1,6 +1,7 @@
 package battleaimod.battleai;
 
 import battleaimod.ValueFunctions;
+import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.actions.GameActionManager;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import ludicrousspeed.simulator.commands.Command;
@@ -85,6 +86,9 @@ public class TurnNode implements Comparable<TurnNode> {
                 curState.saveState = new SaveState();
             }
 
+            FileLogger.log("curState IS for new tur: " + GameActionManager.turn);
+            FileLogger.log("curstate Damage taken: " + StateNode.getPlayerDamage(curState));
+
             controller.turnsLoaded++;
             addRuntime("turnsLoaded", 1);
             TurnNode toAdd = new TurnNode(curState, controller, this);
@@ -143,6 +147,11 @@ public class TurnNode implements Comparable<TurnNode> {
 //                    System.err.println("executing " + toExecute);
 
                     toExecute.execute();
+                    FileLogger.log("Just executed: " + toExecute);
+                    FileLogger.log("Damage taken after execute: " + StateNode.getPlayerDamage(startingState));
+                    FileLogger.log("curTurn turn after execute: " + curState.saveState.turn);
+                    FileLogger.log("GameActionManager turn after execute: " + GameActionManager.turn);
+                    //FileLogger.log("toAdd turn after execute: " + toAdd.saveState.turn);
                     states.push(toAdd);
                 } catch (IndexOutOfBoundsException e) {
                     addRuntime("Execution Exception", 1);

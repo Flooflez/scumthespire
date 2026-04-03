@@ -5,6 +5,7 @@ import basemod.BaseMod;
 import battleaimod.ValueFunctions;
 import battleaimod.utils.FileLogger;
 import com.badlogic.gdx.math.MathUtils;
+import com.megacrit.cardcrawl.actions.GameActionManager;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.helpers.CardLibrary;
@@ -12,6 +13,8 @@ import com.megacrit.cardcrawl.monsters.AbstractMonster;
 import com.megacrit.cardcrawl.relics.AbstractRelic;
 import com.megacrit.cardcrawl.ui.panels.EnergyPanel;
 import ludicrousspeed.Controller;
+import ludicrousspeed.LudicrousSpeedMod;
+import ludicrousspeed.simulator.ActionSimulator;
 import ludicrousspeed.simulator.commands.CardCommand;
 import ludicrousspeed.simulator.commands.Command;
 import ludicrousspeed.simulator.commands.EndCommand;
@@ -53,6 +56,11 @@ public class BattleAiController implements Controller {
     public boolean isDone = false;
     public final SaveState startingState;
     private boolean initialized;
+
+    //evolution stuff
+    private Queue<Command> sequence;
+    private StateNode current;
+    private StateNode startStateNode;
 
     // EXPERIMENTAL
     private TurnNode startNode = null;
@@ -147,7 +155,7 @@ public class BattleAiController implements Controller {
                 if (!monster.isDeadOrEscaped() &&
                         card.canUse(AbstractDungeon.player, monster)) {
 
-                    return new CardCommand(cardIndex, j, card.cardID);
+                    return new CardCommand(cardIndex, j, card.cardID + " "+ card.name);
                 }
             }
 
@@ -160,30 +168,13 @@ public class BattleAiController implements Controller {
                 card.target == AbstractCard.CardTarget.NONE) { //otherwise, just play with no target
 
             if (card.canUse(AbstractDungeon.player, null)) {
-                return new CardCommand(cardIndex, card.cardID);
+                return new CardCommand(cardIndex, card.cardID+" "+ card.name);
             }
         }
 
         return null;
     }
 
-    private StateNode simulateSequence(StateNode startNode, List<Command> commands) {
-        //This func SHOULD simulate commands and return a StateNode with the results of the simulation
-        //DOES NOT WORK!!
-        StateNode current = startNode;
-
-        for (Command cmd : commands) {
-            current.saveState.loadState();
-            StateNode next = new StateNode(current, cmd, this);
-
-            cmd.execute();
-            next.saveState = new SaveState();
-
-            current = next;
-        }
-
-        return current;
-    }
 
     private void printMetrics(StateNode start, StateNode end) {
         //need to make this log to file since console is not visible/freezes
@@ -196,7 +187,12 @@ public class BattleAiController implements Controller {
         FileLogger.log("==========================");
     }
 
+
     public void step() {
+//        if(usingOldStep){
+//            oldStep();
+//            return;
+//        }
         if (isDone) {
             return;
         }
@@ -206,7 +202,9 @@ public class BattleAiController implements Controller {
             isDone = false;
             bestEnd = null;
 
-            System.out.println("Running simple sequence test...");
+            //System.out.println("Running simple sequence test...");
+            FileLogger.log("PlaidMode: "+LudicrousSpeedMod.plaidMode);
+            FileLogger.log("Phase: "+String.valueOf(AbstractDungeon.actionManager.phase));
 
             // Match A* init
             SaveStateMod.runTimes = new HashMap<>();
@@ -216,27 +214,53 @@ public class BattleAiController implements Controller {
             SaveState startState = new SaveState();
             startState.loadState();
 
-            StateNode startNode = new StateNode(null, null, this);
-            startNode.saveState = startingState;
+            startStateNode = new StateNode(null, null, this);
+            startStateNode.saveState = startingState;
+            current = startStateNode;
+            FileLogger.log("turns: " + GameActionManager.turn + " vs " + current.saveState.turn);
 
             startingHealth = startState.getPlayerHealth();
 
-            // 2. Generate abstract sequence
-            List<Command> sequence = generateLeftToRight();
+            // 2. Generate sequence
+            sequence = new ArrayDeque<>(generateLeftToRight());;
 
-            // 3. Simulate properly
-            StateNode endNode = simulateSequence(startNode, sequence);
 
-            // 4. Metrics
-            printMetrics(startNode, endNode);
+        }
+        else{
+            if(!sequence.isEmpty()){
+                Command cmd = sequence.poll();
+                StateNode next = new StateNode(current, cmd, this);
+                cmd.execute();
+                next.saveState = new SaveState();
+                current = next;
+            }
+            else{
+                if(!isNewTurn(current)){
+                    FileLogger.log("not new turn: " + GameActionManager.turn + " vs " + current.saveState.turn);
+                    return;
+                }
 
-            // 5. Store result
-            bestEnd = endNode;
 
-            isDone = true;
+                FileLogger.log("new turn: " + GameActionManager.turn + " vs " + current.saveState.turn);
+                String hand = AbstractDungeon.player.hand.group.stream().map(card -> card.name)
+                                                                    .collect(Collectors
+                                                                           .joining(","));
+                FileLogger.log("new hand: " + hand);
+                current.saveState.loadState();
+
+                bestEnd = current;
+                printMetrics(startStateNode, bestEnd);
+                isDone = true;
+                initialized = false;
+            }
+
         }
     }
 
+
+    private boolean isNewTurn(StateNode turnState) {
+        return (GameActionManager.turn > turnState.saveState.turn);
+    }
 
     private static TurnNode makeResetCopy(TurnNode node) {
         StateNode stateNode = new StateNode(node.startingState.parent, node.startingState.lastCommand, node.controller);
@@ -457,6 +481,9 @@ public class BattleAiController implements Controller {
 
         while (!turns.isEmpty() && (curTurn == null || curTurn.isDone)) {
             curTurn = turns.peek();
+            FileLogger.log("new turn: " + curTurn.startingState.saveState.turn);
+            //printMetrics(startNode.startingState, curTurn.startingState);
+            FileLogger.log("Damage taken: " + StateNode.getPlayerDamage(curTurn.startingState));
 
             int turnNumber = curTurn.startingState.saveState.turn;
 
