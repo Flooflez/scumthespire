@@ -19,6 +19,7 @@ import ludicrousspeed.simulator.commands.CardCommand;
 import ludicrousspeed.simulator.commands.Command;
 import ludicrousspeed.simulator.commands.EndCommand;
 import savestate.CardState;
+import savestate.PlayerState;
 import savestate.SaveState;
 import savestate.SaveStateMod;
 
@@ -189,10 +190,6 @@ public class BattleAiController implements Controller {
 
 
     public void step() {
-//        if(usingOldStep){
-//            oldStep();
-//            return;
-//        }
         if (isDone) {
             return;
         }
@@ -201,10 +198,6 @@ public class BattleAiController implements Controller {
             initialized = true;
             isDone = false;
             bestEnd = null;
-
-            //System.out.println("Running simple sequence test...");
-            FileLogger.log("PlaidMode: "+LudicrousSpeedMod.plaidMode);
-            FileLogger.log("Phase: "+String.valueOf(AbstractDungeon.actionManager.phase));
 
             // Match A* init
             SaveStateMod.runTimes = new HashMap<>();
@@ -217,7 +210,7 @@ public class BattleAiController implements Controller {
             startStateNode = new StateNode(null, null, this);
             startStateNode.saveState = startingState;
             current = startStateNode;
-            FileLogger.log("turns: " + GameActionManager.turn + " vs " + current.saveState.turn);
+            //FileLogger.log("turns: " + GameActionManager.turn + " vs " + current.saveState.turn);
 
             startingHealth = startState.getPlayerHealth();
 
@@ -227,26 +220,17 @@ public class BattleAiController implements Controller {
 
         }
         else{
+            if(current.saveState == null){
+                //IMPORTANT: SaveState MUST come in the next step after running a command to ensure effects propagate!
+                current.saveState = new SaveState();
+            }
             if(!sequence.isEmpty()){
                 Command cmd = sequence.poll();
                 StateNode next = new StateNode(current, cmd, this);
                 cmd.execute();
-                next.saveState = new SaveState();
                 current = next;
             }
             else{
-                if(!isNewTurn(current)){
-                    FileLogger.log("not new turn: " + GameActionManager.turn + " vs " + current.saveState.turn);
-                    return;
-                }
-
-
-                FileLogger.log("new turn: " + GameActionManager.turn + " vs " + current.saveState.turn);
-                String hand = AbstractDungeon.player.hand.group.stream().map(card -> card.name)
-                                                                    .collect(Collectors
-                                                                           .joining(","));
-                FileLogger.log("new hand: " + hand);
-                current.saveState.loadState();
 
                 bestEnd = current;
                 printMetrics(startStateNode, bestEnd);
@@ -404,7 +388,9 @@ public class BattleAiController implements Controller {
         if (isDone) {
             return;
         }
+        FileLogger.log("oldStep called not done");
         if (!initialized) {
+            FileLogger.log("oldStep init");
             TurnNode.nodeIndex = 0;
             startTime = System.currentTimeMillis();
             initialized = true;
@@ -421,6 +407,7 @@ public class BattleAiController implements Controller {
         }
 
         if (curTurn == null || curTurn.isDone) {
+            FileLogger.log(curTurn == null ? "is null" : "curTurn.isDone");
             if (turns.isEmpty() || turnsLoaded >= maxTurnLoads) {
                 if (bestEnd != null) {
                     System.err.println("Found end at turn threshold, going into rerun");
@@ -507,7 +494,11 @@ public class BattleAiController implements Controller {
             long startTurnStep = System.currentTimeMillis();
 
 //            System.err.println("Stepping Turn " + curTurn.turnLabel);
+            PlayerState playerState = new PlayerState(AbstractDungeon.player);
+            FileLogger.log("OLD STEP: player health before turn step: " + playerState.getCurrentHealth());
             boolean reachedNewTurn = curTurn.step();
+            playerState = new PlayerState(AbstractDungeon.player);
+            FileLogger.log("OLD STEP: player health AFTER turn step: " + playerState.getCurrentHealth());
             if (reachedNewTurn) {
                 curTurn = null;
             }
