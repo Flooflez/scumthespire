@@ -2,7 +2,10 @@ package battleaimod.battleai;
 
 
 import battleaimod.ValueFunctions;
+import battleaimod.battleai.data.CardAction;
 import battleaimod.battleai.data.CardSequence;
+import battleaimod.battleai.data.dummycommands.DummyCommand;
+import battleaimod.battleai.data.dummycommands.DummyEndCommand;
 import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
@@ -48,9 +51,9 @@ public class BattleAiController implements Controller {
     private boolean initialized;
 
     //evolution stuff
-    private Queue<List<AbstractCard>> sequences;
-    private Queue<AbstractCard> currentCardQueue;
-    private List<AbstractCard> currentCardList;
+    private Queue<List<CardAction>> sequences;
+    private Queue<DummyCommand> dummyCommandQueue;
+    private List<CardAction> currentCardList;
     private List<CardSequence> finalSequences;
     private StateNode currentState;
     private StateNode startStateNode;
@@ -75,43 +78,56 @@ public class BattleAiController implements Controller {
 
         this.maxTurnLoads = maxTurnLoads;
     }
+    private Queue<List<CardAction>> generateInitPop(int populationSize) {
+        Queue<List<CardAction>> population = new ArrayDeque<>();
 
-    private Queue<List<AbstractCard>> generateInitPop(int populationSize) {
-        Queue<List<AbstractCard>> population = new ArrayDeque<>();
+        if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null) {
+            return population;
+        }
 
         for (int p = 0; p < populationSize; p++) {
 
-            List<AbstractCard> sequence = new ArrayList<>();
+            List<CardAction> sequence = new ArrayList<>();
 
             AbstractDungeon.player.hand.refreshHandLayout();
             int energy = EnergyPanel.totalCount;
 
-            // Build shuffled order of cards
+            // Copy + shuffle hand
             List<AbstractCard> cards = new ArrayList<>(AbstractDungeon.player.hand.group);
             Collections.shuffle(cards);
 
             for (AbstractCard card : cards) {
 
+                if (card == null) continue;
+
                 int cost = card.costForTurn;
 
-
-                if (cost == -2) { // Skip unplayable
+                // Skip unplayable
+                if (cost == -2) {
                     continue;
                 }
 
-
-
-                if (cost == -1) { // X-cost
-                    sequence.add(card);
+                // X-cost card
+                if (cost == -1) {
+                    CardAction action = createRandomAction(card);
+                    if (action != null) {
+                        sequence.add(action);
+                    }
                     break; // consumes all energy
                 }
 
-
-                if (cost <= energy) { // Normal cost
-                    sequence.add(card);
-                    energy -= cost;
+                // Normal cost
+                if (cost <= energy) {
+                    CardAction action = createRandomAction(card);
+                    if (action != null) {
+                        sequence.add(action);
+                        energy -= cost;
+                    }
                 }
 
+                if (energy <= 0) {
+                    break;
+                }
             }
 
             population.add(sequence);
@@ -120,50 +136,54 @@ public class BattleAiController implements Controller {
         return population;
     }
 
-    private Command createCommandForCard(AbstractCard targetCard) {
-        int cardIndex = -1;
 
-        for (int i = 0; i < AbstractDungeon.player.hand.group.size(); i++) {
-            AbstractCard handCard = AbstractDungeon.player.hand.group.get(i);
+    private CardAction createRandomAction(AbstractCard card) {
+        //TODO: Handle HandSelectCommand + GridSelectCommand
 
-            if (handCard.getMetricID().equals(targetCard.getMetricID())) {
-                cardIndex = i;
-                targetCard = handCard; // use the live instance
-                break;
-            }
-        }
-
-        if (cardIndex == -1) { // Card not found (was removed / transformed / etc.)
+        if (card == null || AbstractDungeon.player == null) {
             return null;
         }
 
-        // 2. Handle targeted cards
-        if (targetCard.target == AbstractCard.CardTarget.ENEMY ||
-                targetCard.target == AbstractCard.CardTarget.SELF_AND_ENEMY) {
+        // --- Cards that require enemy target ---
+        if (card.target == AbstractCard.CardTarget.ENEMY ||
+                card.target == AbstractCard.CardTarget.SELF_AND_ENEMY) {
 
-            for (int j = 0; j < AbstractDungeon.getMonsters().monsters.size(); j++) {
-                AbstractMonster monster = AbstractDungeon.getMonsters().monsters.get(j);
+            List<AbstractMonster> validTargets = new ArrayList<>();
 
-                if (!monster.isDeadOrEscaped() &&
-                        targetCard.canUse(AbstractDungeon.player, monster)) {
+            if (AbstractDungeon.getMonsters() != null) {
+                for (int i = 0; i < AbstractDungeon.getMonsters().monsters.size(); i++) {
+                    AbstractMonster m = AbstractDungeon.getMonsters().monsters.get(i);
 
-                    return new CardCommand(cardIndex, j,
-                            targetCard.cardID + " " + targetCard.name);
+                    if (m != null &&
+                            !m.isDeadOrEscaped() &&
+                            card.canUse(AbstractDungeon.player, m)) {
+
+                        validTargets.add(m);
+                    }
                 }
             }
 
-            return null; // no valid target
+            if (validTargets.isEmpty()) {
+                return null;
+            }
+
+            // Pick random valid monster
+            int randIndex = AbstractDungeon.cardRandomRng.random(validTargets.size() - 1);
+            AbstractMonster target = validTargets.get(randIndex);
+
+            int enemyIndex = AbstractDungeon.getMonsters().monsters.indexOf(target);
+
+            return new CardAction(card, enemyIndex);
         }
 
-        // 3. Non-targeted cards
-        if (targetCard.target == AbstractCard.CardTarget.ALL_ENEMY ||
-                targetCard.target == AbstractCard.CardTarget.ALL ||
-                targetCard.target == AbstractCard.CardTarget.SELF ||
-                targetCard.target == AbstractCard.CardTarget.NONE) {
+        // --- Non-targeted cards ---
+        if (card.target == AbstractCard.CardTarget.ALL_ENEMY ||
+                card.target == AbstractCard.CardTarget.ALL ||
+                card.target == AbstractCard.CardTarget.SELF ||
+                card.target == AbstractCard.CardTarget.NONE) {
 
-            if (targetCard.canUse(AbstractDungeon.player, null)) {
-                return new CardCommand(cardIndex,
-                        targetCard.cardID + " " + targetCard.name);
+            if (card.canUse(AbstractDungeon.player, null)) {
+                return new CardAction(card);
             }
         }
 
@@ -181,16 +201,27 @@ public class BattleAiController implements Controller {
         FileLogger.log("==========================");
     }
 
-    private double getFitness(StateNode start, StateNode end){
+    private double getFitness(StateNode start, StateNode end) {
         double damageTaken = StateNode.getPlayerDamage(end);
         double damageDealt = ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState);
         double remainingHP = ValueFunctions.getTotalMonsterHealth(end.saveState);
+        int remainingMonsters = ValueFunctions.getAliveMonsterCount(end.saveState);
 
         double fitness = (damageDealt * 2.0)
                 - (damageTaken * 3.0)
-                - (remainingHP * 1.0);
+                - (remainingHP * 1.0)
+                - (remainingMonsters * 10.0);
 
         return fitness;
+    }
+
+    private Queue<DummyCommand> actionsToCommands(List<CardAction> cardActionList){
+        Queue<DummyCommand> commands = new ArrayDeque<>();
+        for(CardAction action: cardActionList){
+            commands.addAll(action.getDummyCommands());
+        }
+        commands.add(new DummyEndCommand());
+        return commands;
     }
 
 
@@ -204,7 +235,7 @@ public class BattleAiController implements Controller {
                 initialized = true;
                 isDone = false;
                 bestEnd = null;
-                shouldRunEndCommand = false;
+                //shouldRunEndCommand = false;
                 finalSequences = new ArrayList<>();
 
                 // Match A* init
@@ -222,8 +253,7 @@ public class BattleAiController implements Controller {
 
                 startingHealth = startState.getPlayerHealth();
 
-                sequences = generateInitPop(100);
-
+                sequences = generateInitPop(200);
 
             }
             else{
@@ -232,23 +262,14 @@ public class BattleAiController implements Controller {
                     currentState.saveState = new SaveState();
                 }
 
-                if(currentCardQueue == null || currentCardQueue.isEmpty()){
-                    if(shouldRunEndCommand){ //ensure EndCommand is run after all cards
-                        Command cmd = new EndCommand();
-                        StateNode next = new StateNode(currentState, cmd, this);
-                        cmd.execute();
-                        currentState = next;
-                        shouldRunEndCommand = false;
-                        return;
-                    }
-
-                    //eval score, add to list
+                if(dummyCommandQueue == null || dummyCommandQueue.isEmpty()){
+                    //not null check to skip first loop
                     if (currentCardList != null) {
+                        //eval score, add to final sorting list
                         double turnFitness = getFitness(startStateNode, currentState);
                         CardSequence seq = new CardSequence(currentCardList, turnFitness, currentState);
                         finalSequences.add(seq);
                     }
-
 
                     if(sequences.isEmpty()){
                         //finished simulating all
@@ -262,10 +283,10 @@ public class BattleAiController implements Controller {
                         initialized = false;
                     }
                     else{
-                        //init
-                        currentCardList = sequences.poll();
-                        currentCardQueue = new ArrayDeque<>(currentCardList);
-                        shouldRunEndCommand = true;
+                        //init next sequence
+                        currentCardList = sequences.poll(); //just so we can save it and evolve later
+                        dummyCommandQueue = actionsToCommands(currentCardList);
+                        //get queue of commands to run
 
                         currentState = startStateNode;
                         startStateNode.saveState.loadState(); //reset sim to start
@@ -274,11 +295,11 @@ public class BattleAiController implements Controller {
 
                 }
 
-                //if !currentCardQueue.isEmpty, do this stuff
-                AbstractCard card = currentCardQueue.poll();
-                Command cmd = createCommandForCard(card);
+                //This code will run if dummyCommandQueue has commands to run still:
+                Command cmd = dummyCommandQueue.poll().getRealCommand();
                 if(cmd == null){
-                    FileLogger.log("cmd was null, skipping card: " + card);
+                    FileLogger.log("cmd was null, skipping cmd");
+                    //TODO: if needed, save DummyCard and implement toString()
                 }
                 else{
                     StateNode next = new StateNode(currentState, cmd, this);

@@ -8,7 +8,7 @@ import java.util.List;
 
 public class CardSequence implements Comparable<CardSequence> {
 
-    private final List<AbstractCard> cards;
+    private final List<CardAction> cards;
     private double fitness;
     private StateNode endState;
 
@@ -17,17 +17,17 @@ public class CardSequence implements Comparable<CardSequence> {
         this.fitness = 0.0;
     }
 
-    public CardSequence(List<AbstractCard> cards, double score, StateNode endState) {
+    public CardSequence(List<CardAction> cards, double score, StateNode endState) {
         this.cards = new ArrayList<>(cards); // defensive copy
         this.fitness = score;
         this.endState = endState;
     }
 
-    public List<AbstractCard> getCards() {
+    public List<CardAction> getCards() {
         return cards;
     }
 
-    public void addCard(AbstractCard card) {
+    public void addCard(CardAction card) {
         cards.add(card);
     }
 
