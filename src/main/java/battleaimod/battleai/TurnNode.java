@@ -66,7 +66,7 @@ public class TurnNode implements Comparable<TurnNode> {
         }
 
         StateNode curState = states.peek();
-        FileLogger.log("new step, curState id: " + curState.id);
+        //FileLogger.log("new step, curState id: " + curState.id);
         PlayerState playerState = new PlayerState(AbstractDungeon.player);
         FileLogger.log("player health at new step: " + playerState.getCurrentHealth());
         FileLogger.log("curState save state null: " + (curState.saveState == null));
@@ -95,7 +95,7 @@ public class TurnNode implements Comparable<TurnNode> {
             FileLogger.log("curstate Damage taken: " + StateNode.getPlayerDamage(curState));
             FileLogger.log("curstate last command: " + curState.lastCommand);
 
-            controller.turnsLoaded++;
+            //controller.turnsLoaded++;
             addRuntime("turnsLoaded", 1);
             TurnNode toAdd = new TurnNode(curState, controller, this);
             states.pop();
@@ -134,7 +134,7 @@ public class TurnNode implements Comparable<TurnNode> {
             Command toExecute = curState.step();
 
             if (toExecute == null) {
-                controller.turnsLoaded++;
+                //controller.turnsLoaded++;
                 states.pop();
                 if (!states.isEmpty()) {
                     states.peek().saveState.loadState();
@@ -160,7 +160,7 @@ public class TurnNode implements Comparable<TurnNode> {
                     FileLogger.log("curTurn turn after execute: " + curState.saveState.turn);
                     FileLogger.log("GameActionManager turn after execute: " + GameActionManager.turn);
 
-                    FileLogger.log("toAdd id: " + toAdd.id);
+                    //FileLogger.log("toAdd id: " + toAdd.id);
                     states.push(toAdd);
                 } catch (IndexOutOfBoundsException e) {
                     addRuntime("Execution Exception", 1);
