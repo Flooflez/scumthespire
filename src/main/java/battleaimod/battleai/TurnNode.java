@@ -66,7 +66,7 @@ public class TurnNode implements Comparable<TurnNode> {
         }
 
         StateNode curState = states.peek();
-        FileLogger.log("new step, curState id: " + curState.id);
+        //FileLogger.log("new step, curState id: " + curState.id);
         PlayerState playerState = new PlayerState(AbstractDungeon.player);
         FileLogger.log("player health at new step: " + playerState.getCurrentHealth());
         FileLogger.log("curState save state null: " + (curState.saveState == null));
@@ -160,7 +160,7 @@ public class TurnNode implements Comparable<TurnNode> {
                     FileLogger.log("curTurn turn after execute: " + curState.saveState.turn);
                     FileLogger.log("GameActionManager turn after execute: " + GameActionManager.turn);
 
-                    FileLogger.log("toAdd id: " + toAdd.id);
+                    //FileLogger.log("toAdd id: " + toAdd.id);
                     states.push(toAdd);
                 } catch (IndexOutOfBoundsException e) {
                     addRuntime("Execution Exception", 1);
