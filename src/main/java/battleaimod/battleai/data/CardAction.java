@@ -15,30 +15,17 @@ public class CardAction {
      */
 
     private AbstractCard mainCard;
-    private final AbstractCard selectCard;
     private final int enemyIndex;
 
-    public CardAction(AbstractCard mainCard, AbstractCard selectCard, int enemyIndex) {
-        this.mainCard = mainCard;
-        this.selectCard = selectCard;
-        this.enemyIndex = enemyIndex;
-    }
 
-    public CardAction(AbstractCard mainCard, AbstractCard selectCard) {
-        this.mainCard = mainCard;
-        this.selectCard = selectCard;
-        this.enemyIndex = -1;
-    }
 
     public CardAction(AbstractCard mainCard, int enemyIndex) {
         this.mainCard = mainCard;
-        this.selectCard = null;
         this.enemyIndex = enemyIndex;
     }
 
     public CardAction(AbstractCard mainCard) {
         this.mainCard = mainCard;
-        this.selectCard = null;
         this.enemyIndex = -1;
     }
 

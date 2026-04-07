@@ -9,12 +9,12 @@ import java.util.List;
 public class CardSequence implements Comparable<CardSequence> {
 
     private final List<CardAction> cards;
+    private List<AbstractCard> leftoverCards;
     private double fitness;
     private StateNode endState;
 
-    public CardSequence() {
-        this.cards = new ArrayList<>();
-        this.fitness = 0.0;
+    public CardSequence(List<CardAction> cards, List<AbstractCard> leftoverCards) {
+        this.cards = new ArrayList<>(cards); // defensive copy
     }
 
     public CardSequence(List<CardAction> cards, double score, StateNode endState) {
