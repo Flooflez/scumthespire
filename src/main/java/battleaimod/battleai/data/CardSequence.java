@@ -3,33 +3,74 @@ package battleaimod.battleai.data;
 import battleaimod.battleai.StateNode;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class CardSequence implements Comparable<CardSequence> {
 
     private final List<CardAction> cards;
-    private List<AbstractCard> leftoverCards;
+    private final List<AbstractCard> leftoverCardOrder;
+    private int leftoverCardIndex;
+
+    private Queue<AbstractCard> gridSelectChoices;
+    private List<AbstractCard> gridSelectChoicesBuffer;
+    //for first generation when we are presented with a grid select menu, pick randomly and add to buffer
+    //subsequent generations will read selections from the buffer via the gridSelectChoices queue
+    //if the card is not available to be chosen, a random one will be picked and the card will be overwritten in the buffer
+
     private double fitness;
     private StateNode endState;
 
     public CardSequence(List<CardAction> cards, List<AbstractCard> leftoverCards) {
         this.cards = new ArrayList<>(cards); // defensive copy
-    }
+        this.leftoverCardOrder = new ArrayList<>(leftoverCards); //copy for evolution
+        Collections.shuffle(this.leftoverCardOrder);
+        leftoverCardIndex = 0;
 
-    public CardSequence(List<CardAction> cards, double score, StateNode endState) {
-        this.cards = new ArrayList<>(cards); // defensive copy
-        this.fitness = score;
-        this.endState = endState;
+        gridSelectChoicesBuffer = new ArrayList<>();
     }
 
     public List<CardAction> getCards() {
         return cards;
     }
 
-    public void addCard(CardAction card) {
-        cards.add(card);
+    public AbstractCard getNextHandSelectCard(){
+        if(leftoverCardIndex == leftoverCardOrder.size()){ //ran out of leftovers
+            if (cards.isEmpty()) return null;
+            //no more cards, handled in BattleAiController
+
+            else return cards.remove(cards.size()-1).getMainCard();
+            //choose last card in play sequence to discard/exhaust
+        }
+        else{
+            return leftoverCardOrder.get(leftoverCardIndex++); //get next leftover and iterate
+        }
     }
+
+    public void addGridSelectChoiceToBuffer(AbstractCard card){
+        gridSelectChoicesBuffer.add(card);
+    }
+
+    public void changeBufferByIndex(AbstractCard card, int index){
+        gridSelectChoicesBuffer.set(index, card);
+    }
+
+    public boolean hasGridSelectChoices(){
+        return (gridSelectChoicesBuffer == null) || (!gridSelectChoices.isEmpty());
+    }
+
+    public AbstractCard getNextGridSelectChoice(){
+        if(gridSelectChoices != null && !gridSelectChoices.isEmpty()){
+            return gridSelectChoices.poll();
+        }
+        return null;
+    }
+
+    public void populateGridSelectChoices(){
+        if(!gridSelectChoicesBuffer.isEmpty()){
+            gridSelectChoices = new ArrayDeque<>(gridSelectChoicesBuffer);
+        }
+    }
+
 
     public double getFitness() {
         return fitness;

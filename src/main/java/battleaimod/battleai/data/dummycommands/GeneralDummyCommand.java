@@ -1,13 +1,15 @@
 package battleaimod.battleai.data.dummycommands;
 
 import ludicrousspeed.simulator.commands.Command;
-import ludicrousspeed.simulator.commands.EndCommand;
 
-public class DummyEndCommand implements DummyCommand {
+public class GeneralDummyCommand implements DummyCommand {
+    private final Command cmd;
+    public GeneralDummyCommand(Command cmd){
+        this.cmd = cmd;
+    }
+
     @Override
     public Command getRealCommand() {
-        Command cmd = new EndCommand();
-        cmd.execute();
         return cmd;
     }
 }

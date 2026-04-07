@@ -14,9 +14,9 @@ public class CardAction {
     But since these 2 commands must be played consecutively, they must be evolved together as a single unit
      */
 
-    private AbstractCard mainCard;
-    private final int enemyIndex;
 
+    private final AbstractCard mainCard;
+    private final int enemyIndex;
 
 
     public CardAction(AbstractCard mainCard, int enemyIndex) {
@@ -28,6 +28,11 @@ public class CardAction {
         this.mainCard = mainCard;
         this.enemyIndex = -1;
     }
+
+    public AbstractCard getMainCard() {
+        return mainCard;
+    }
+
 
     public List<DummyCommand> getDummyCommands(){
         List<DummyCommand> cmds = new ArrayList<>();

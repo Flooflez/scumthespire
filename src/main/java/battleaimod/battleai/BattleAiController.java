@@ -5,16 +5,18 @@ import battleaimod.ValueFunctions;
 import battleaimod.battleai.data.CardAction;
 import battleaimod.battleai.data.CardSequence;
 import battleaimod.battleai.data.dummycommands.DummyCommand;
-import battleaimod.battleai.data.dummycommands.DummyEndCommand;
+import battleaimod.battleai.data.dummycommands.DummyGridSelectCommand;
+import battleaimod.battleai.data.dummycommands.DummyHandSelectCommand;
+import battleaimod.battleai.data.dummycommands.GeneralDummyCommand;
 import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
+import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.monsters.AbstractMonster;
+import com.megacrit.cardcrawl.rooms.AbstractRoom;
 import com.megacrit.cardcrawl.ui.panels.EnergyPanel;
 import ludicrousspeed.Controller;
-import ludicrousspeed.simulator.commands.CardCommand;
-import ludicrousspeed.simulator.commands.Command;
-import ludicrousspeed.simulator.commands.EndCommand;
+import ludicrousspeed.simulator.commands.*;
 import savestate.CardState;
 import savestate.SaveState;
 import savestate.SaveStateMod;
@@ -52,7 +54,7 @@ public class BattleAiController implements Controller {
 
     //evolution stuff
     private Queue<CardSequence> sequences;
-    private Queue<DummyCommand> dummyCommandQueue;
+    private Deque<DummyCommand> dummyCommandQueue;
     private CardSequence currentCardSeq;
     private List<CardSequence> finalSequences;
     private StateNode currentState;
@@ -227,12 +229,12 @@ public class BattleAiController implements Controller {
         return fitness;
     }
 
-    private Queue<DummyCommand> actionsToCommands(List<CardAction> cardActionList){
-        Queue<DummyCommand> commands = new ArrayDeque<>();
+    private Deque<DummyCommand> actionsToCommands(List<CardAction> cardActionList){
+        Deque<DummyCommand> commands = new ArrayDeque<>();
         for(CardAction action: cardActionList){
             commands.addAll(action.getDummyCommands());
         }
-        commands.add(new DummyEndCommand());
+        commands.add(new GeneralDummyCommand(new EndCommand()));
         return commands;
     }
 
@@ -309,10 +311,15 @@ public class BattleAiController implements Controller {
                 }
 
                 //This code will run if dummyCommandQueue has commands to run still:
+
+                //check if there is a UI menu: this func will add commands if needed
+                checkUICommands(dummyCommandQueue, currentCardSeq); //TODO infinite loop since it takes 2 commands to process
+                FileLogger.log("success");
+
                 Command cmd = dummyCommandQueue.poll().getRealCommand();
                 if(cmd == null){
                     FileLogger.log("cmd was null, skipping cmd");
-                    //TODO: if needed, save DummyCard and implement toString()
+                    //TODO: if needed, save DummyCard from poll and implement toString()
                 }
                 else{
                     StateNode next = new StateNode(currentState, cmd, this);
@@ -358,6 +365,76 @@ public class BattleAiController implements Controller {
 
     public int maxTurnLoads() {
         return maxTurnLoads;
+    }
+
+
+    private void checkUICommands(Deque<DummyCommand> dummyCommandQueue, CardSequence cardSequence){
+        FileLogger.log("checking UI commands");
+        if (isInHandSelect()) {
+            FileLogger.log("getting card");
+            AbstractCard card = cardSequence.getNextHandSelectCard();
+            FileLogger.log("finished get");
+            if(card != null){//null shouldn't happen since isInHandSelect will be false
+                FileLogger.log("putting commands in");
+                dummyCommandQueue.offerFirst(new GeneralDummyCommand(HandSelectConfirmCommand.INSTANCE));
+                dummyCommandQueue.offerFirst(new DummyHandSelectCommand(card));
+            }
+            return;
+        }
+
+        if (isInGridSelect()) {
+            //includes Scry, Seek, Headbutt etc.
+
+            dummyCommandQueue.offerFirst(new GeneralDummyCommand(GridSelectConfrimCommand.INSTANCE));
+            //this one is harder since we don't know the set of cards we are going to see,
+            //and we don't know where the card is going (discard, draw pile, hand)
+
+            if (cardSequence.hasGridSelectChoices()){
+                //try to use the saved choice
+                AbstractCard selectedCard = cardSequence.getNextGridSelectChoice();
+                dummyCommandQueue.offerFirst(new DummyGridSelectCommand(selectedCard));
+            }
+            else{
+                //random
+                List<AbstractCard> group = AbstractDungeon.gridSelectScreen.targetGroup.group;
+                int randIndex = new Random().nextInt(group.size());
+                AbstractCard randomCard = group.get(randIndex);
+
+                dummyCommandQueue.offerFirst(new DummyGridSelectCommand(randomCard));
+                cardSequence.addGridSelectChoiceToBuffer(randomCard); //setup for next time
+            }
+            return;
+        }
+
+        if (isInCardRewardSelect()) { //literally just for Discover, just pick 0 every time, change later if needed
+            dummyCommandQueue.offerFirst(new GeneralDummyCommand(new CardRewardSelectCommand(0)));
+//            for(int i = 0; i < AbstractDungeon.cardRewardScreen.rewardGroup.size(); ++i) {
+//
+//            }
+        }
+
+    }
+
+
+
+    private static boolean isInGridSelect() {
+        FileLogger.log("checking grid select menu open");
+        return isInDungeon() && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT && AbstractDungeon.isScreenUp && AbstractDungeon.screen == AbstractDungeon.CurrentScreen.GRID;
+    }
+
+
+    private static boolean isInHandSelect() {
+        FileLogger.log("checking hand select menu open");
+        return isInDungeon() && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT && AbstractDungeon.isScreenUp && AbstractDungeon.screen == AbstractDungeon.CurrentScreen.HAND_SELECT;
+    }
+
+    private static boolean isInCardRewardSelect() {
+        FileLogger.log("checking card reward menu open");
+        return isInDungeon() && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT && AbstractDungeon.isScreenUp && AbstractDungeon.screen == AbstractDungeon.CurrentScreen.CARD_REWARD;
+    }
+
+    private static boolean isInDungeon() {
+        return CardCrawlGame.mode == CardCrawlGame.GameMode.GAMEPLAY && AbstractDungeon.isPlayerInDungeon() && AbstractDungeon.currMapNode != null;
     }
 
 

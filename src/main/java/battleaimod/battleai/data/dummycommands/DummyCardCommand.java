@@ -1,7 +1,6 @@
 package battleaimod.battleai.data.dummycommands;
 
 import com.megacrit.cardcrawl.cards.AbstractCard;
-import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import ludicrousspeed.simulator.commands.CardCommand;
 import ludicrousspeed.simulator.commands.Command;
 
@@ -21,19 +20,10 @@ public class DummyCardCommand implements DummyCommand {
 
     @Override
     public Command getRealCommand() {
-        int cardIndex = -1;
+        int cardIndex = DummyCommand.getCardIndexFromHand(card);
 
-        for (int i = 0; i < AbstractDungeon.player.hand.group.size(); i++) {
-            AbstractCard handCard = AbstractDungeon.player.hand.group.get(i);
+        //TODO: error check for card not found
 
-            if (handCard.getMetricID().equals(card.getMetricID())) {
-                cardIndex = i;
-                break;
-            }
-        }
-
-
-        Command cmd = new CardCommand(cardIndex, enemyIndex, card.cardID + " " + card.name);
-        return cmd;
+        return new CardCommand(cardIndex, enemyIndex, card.cardID + " " + card.name);
     }
 }
