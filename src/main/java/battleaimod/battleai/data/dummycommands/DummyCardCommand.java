@@ -1,8 +1,12 @@
 package battleaimod.battleai.data.dummycommands;
 
+import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
+import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import ludicrousspeed.simulator.commands.CardCommand;
 import ludicrousspeed.simulator.commands.Command;
+
+import java.util.Objects;
 
 public class DummyCardCommand implements DummyCommand {
     private final AbstractCard card;
@@ -23,6 +27,13 @@ public class DummyCardCommand implements DummyCommand {
         int cardIndex = DummyCommand.getCardIndexFromHand(card);
 
         //TODO: error check for card not found
+        if(cardIndex == -1){
+            FileLogger.logError("card not found: " + card + " id: " + card.getMetricID());
+            FileLogger.logError("hand: " + AbstractDungeon.player.hand.group);
+            for (AbstractCard c : AbstractDungeon.player.hand.group){
+                FileLogger.logError("   card id: " + c.getMetricID());
+            }
+        }
 
         return new CardCommand(cardIndex, enemyIndex, card.cardID + " " + card.name);
     }

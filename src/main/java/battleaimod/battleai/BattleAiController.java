@@ -87,6 +87,11 @@ public class BattleAiController implements Controller {
             return population;
         }
 
+        FileLogger.log("starting hand: ");
+        for (AbstractCard c : AbstractDungeon.player.hand.group){
+            FileLogger.log("   card id: " + c.getMetricID());
+        }
+
         for (int p = 0; p < populationSize; p++) {
 
             List<CardAction> cardActionList = new ArrayList<>();
@@ -104,6 +109,7 @@ public class BattleAiController implements Controller {
                 if (card == null) continue;
 
                 int cost = card.costForTurn;
+
 
                 // Skip unplayable
                 if (cost == -2) {
@@ -240,7 +246,7 @@ public class BattleAiController implements Controller {
 
 
     public void step() {
-//        try{
+        try{
             if (isDone) {
                 return;
             }
@@ -292,6 +298,8 @@ public class BattleAiController implements Controller {
                         //sort, get best end
                         Collections.sort(finalSequences);
 
+                        FileLogger.log("FINSIHED SIMULATIONS");
+
                         bestEnd = finalSequences.get(0).getEndState();
                         printMetrics(startStateNode, bestEnd);
                         isDone = true;
@@ -311,12 +319,17 @@ public class BattleAiController implements Controller {
                 }
 
                 //This code will run if dummyCommandQueue has commands to run still:
+                Command cmd = dummyCommandQueue.peek().getRealCommand();
 
-                //check if there is a UI menu: this func will add commands if needed
-                checkUICommands(dummyCommandQueue, currentCardSeq); //TODO infinite loop since it takes 2 commands to process
-                FileLogger.log("success");
+                if (cmd instanceof CardCommand || cmd instanceof EndCommand){
+                    FileLogger.log("checking for UI command");
+                    checkUICommands(dummyCommandQueue, currentCardSeq); //check if there is a UI menu: this func will add commands if needed
+                    FileLogger.log("done checking for UI command");
+                }
 
-                Command cmd = dummyCommandQueue.poll().getRealCommand();
+                cmd = dummyCommandQueue.poll().getRealCommand(); //overwrite old command with new one
+
+
                 if(cmd == null){
                     FileLogger.log("cmd was null, skipping cmd");
                     //TODO: if needed, save DummyCard from poll and implement toString()
@@ -327,12 +340,16 @@ public class BattleAiController implements Controller {
                     currentState = next;
                 }
             }
-//        }catch (Exception e){
-//            FileLogger.log(e.getMessage());
-//            FileLogger.log(e.getCause().toString());
-//            FileLogger.log(Arrays.toString(e.getStackTrace()));
-//            //throw new RuntimeException(e);
-//        }
+        }catch (Exception e){
+            FileLogger.logError("error");
+            FileLogger.logError("message: " + e.getMessage());
+            FileLogger.logError("cause: " + e.getCause());
+            FileLogger.logError("stack trace: " + Arrays.toString(e.getStackTrace()));
+
+            isDone = true;
+            bestEnd = null;
+            //throw new RuntimeException(e);
+        }
 
 
     }

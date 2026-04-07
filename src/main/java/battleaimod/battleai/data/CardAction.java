@@ -2,10 +2,12 @@ package battleaimod.battleai.data;
 
 import battleaimod.battleai.data.dummycommands.DummyCardCommand;
 import battleaimod.battleai.data.dummycommands.DummyCommand;
+import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class CardAction {
     /*
