@@ -33,6 +33,7 @@ public class DummyCardCommand implements DummyCommand {
             for (AbstractCard c : AbstractDungeon.player.hand.group){
                 FileLogger.logError("   card id: " + c.getMetricID());
             }
+            return null;
         }
 
         return new CardCommand(cardIndex, enemyIndex, card.cardID + " " + card.name);
