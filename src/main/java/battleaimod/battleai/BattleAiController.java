@@ -157,8 +157,7 @@ public class BattleAiController implements Controller {
     }
 
 
-    private CardAction createCardAction(AbstractCard card) {
-        //TODO: Handle HandSelectCommand + GridSelectCommand
+    public static CardAction createCardAction(AbstractCard card) {
 
         if (card == null || AbstractDungeon.player == null) {
             return null;
@@ -298,7 +297,7 @@ public class BattleAiController implements Controller {
                         //sort, get best end
                         Collections.sort(finalSequences);
 
-                        FileLogger.log("FINSIHED SIMULATIONS");
+                        FileLogger.log("FINISHED SIMULATIONS");
 
                         bestEnd = finalSequences.get(0).getEndState();
                         printMetrics(startStateNode, bestEnd);
@@ -322,9 +321,14 @@ public class BattleAiController implements Controller {
                 Command cmd = dummyCommandQueue.peek().getRealCommand();
 
                 if (cmd instanceof CardCommand || cmd instanceof EndCommand){
-                    FileLogger.log("checking for UI command");
+                    //FileLogger.log("checking for UI command");
                     checkUICommands(dummyCommandQueue, currentCardSeq); //check if there is a UI menu: this func will add commands if needed
-                    FileLogger.log("done checking for UI command");
+                    //FileLogger.log("done checking for UI command");
+
+                    if(cmd instanceof EndCommand){
+                        checkExtraEnergy(dummyCommandQueue, currentCardSeq);
+                    }
+
                 }
 
                 cmd = dummyCommandQueue.poll().getRealCommand(); //overwrite old command with new one
@@ -353,7 +357,6 @@ public class BattleAiController implements Controller {
 
 
     }
-
 
 
     public static List<StateNode> stateNodesToGetToNode(StateNode endNode) {
@@ -386,13 +389,13 @@ public class BattleAiController implements Controller {
 
 
     private void checkUICommands(Deque<DummyCommand> dummyCommandQueue, CardSequence cardSequence){
-        FileLogger.log("checking UI commands");
+        //FileLogger.log("checking UI commands");
         if (isInHandSelect()) {
-            FileLogger.log("getting card");
+            //FileLogger.log("getting card");
             AbstractCard card = cardSequence.getNextHandSelectCard();
-            FileLogger.log("finished get");
+            //FileLogger.log("finished get");
             if(card != null){//null shouldn't happen since isInHandSelect will be false
-                FileLogger.log("putting commands in");
+                //FileLogger.log("putting commands in");
                 dummyCommandQueue.offerFirst(new GeneralDummyCommand(HandSelectConfirmCommand.INSTANCE));
                 dummyCommandQueue.offerFirst(new DummyHandSelectCommand(card));
             }
@@ -432,7 +435,24 @@ public class BattleAiController implements Controller {
 
     }
 
+    private void checkExtraEnergy(Deque<DummyCommand> dummyCommandQueue, CardSequence cardSequence){
+        if (EnergyPanel.totalCount == 0){
+            return; //no energy, stop here
+        }
+        CardAction a = cardSequence.getNextPlayableCard(EnergyPanel.totalCount);
+        if(a == null){
+            return; //no cards, stop here
+        }
 
+        FileLogger.log("has extra energy and extra cards: " + EnergyPanel.totalCount);
+
+        List<DummyCommand> cmds = a.getDummyCommands();
+        Collections.reverse(cmds);
+
+        for(DummyCommand cmd : cmds) {
+            dummyCommandQueue.offerFirst(cmd);
+        }
+    }
 
     private static boolean isInGridSelect() {
         FileLogger.log("checking grid select menu open");

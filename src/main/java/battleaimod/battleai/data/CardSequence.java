@@ -1,6 +1,8 @@
 package battleaimod.battleai.data;
 
+import battleaimod.battleai.BattleAiController;
 import battleaimod.battleai.StateNode;
+import battleaimod.battleai.data.dummycommands.DummyCommand;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 
 import java.util.*;
@@ -44,6 +46,26 @@ public class CardSequence implements Comparable<CardSequence> {
         else{
             return leftoverCardOrder.get(leftoverCardIndex++); //get next leftover and iterate
         }
+    }
+
+    public CardAction getNextPlayableCard(int energy){
+        for (int i = leftoverCardOrder.size()-1; i >= 0 ; i--) { //reverse to prevent desyncs
+            if(i < leftoverCardIndex){
+                //out of leftovers, no playable cards
+                return null;
+            }
+            AbstractCard c = leftoverCardOrder.get(i);
+
+            if(c.costForTurn != -2 && c.costForTurn <= energy){
+                leftoverCardOrder.remove(c);
+                CardAction a = BattleAiController.createCardAction(c);
+                cards.add(a);
+
+                return a;
+            }
+        }
+
+        return null; //went over all cards, none were playable
     }
 
     public void addGridSelectChoiceToBuffer(AbstractCard card){
