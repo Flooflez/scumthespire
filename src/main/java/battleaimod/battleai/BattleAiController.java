@@ -12,7 +12,6 @@ import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
-import com.megacrit.cardcrawl.monsters.AbstractMonster;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
 import com.megacrit.cardcrawl.ui.panels.EnergyPanel;
 import ludicrousspeed.Controller;
@@ -63,10 +62,11 @@ public class BattleAiController implements Controller {
     private List<AbstractCard> previousHand;
 
     private int currentGeneration = 0;
-    private final int GENERATIONS = 10;
+    private final int GENERATIONS = 5;
     private final int POPULATIONSIZE = 200;
-    private final int PARENTSIZE = 30;
-    private final int ELITENUM = 3;
+    private final int MUTATIONSIZE = 170;
+    private final int PARENTSIZE = 50;
+    private final int ELITENUM = 10;
 
     // EXPERIMENTAL
     public static final boolean SHOULD_SHOW_TREE = false;
@@ -127,7 +127,7 @@ public class BattleAiController implements Controller {
 
                 // X-cost card
                 if (cost == -1) {
-                    CardAction action = createCardAction(card);
+                    CardAction action = CardAction.createCardAction(card);
                     if (action != null) {
                         cardActionList.add(action);
                         usedCards.add(card);
@@ -137,7 +137,7 @@ public class BattleAiController implements Controller {
 
                 // Normal cost
                 if (cost <= energy) {
-                    CardAction action = createCardAction(card);
+                    CardAction action = CardAction.createCardAction(card);
                     if (action != null) {
                         cardActionList.add(action);
                         usedCards.add(card);
@@ -166,57 +166,7 @@ public class BattleAiController implements Controller {
     }
 
 
-    public static CardAction createCardAction(AbstractCard card) {
 
-        if (card == null || AbstractDungeon.player == null) {
-            return null;
-        }
-
-        // --- Cards that require enemy target ---
-        if (card.target == AbstractCard.CardTarget.ENEMY ||
-                card.target == AbstractCard.CardTarget.SELF_AND_ENEMY) {
-
-            List<AbstractMonster> validTargets = new ArrayList<>();
-
-            if (AbstractDungeon.getMonsters() != null) {
-                for (int i = 0; i < AbstractDungeon.getMonsters().monsters.size(); i++) {
-                    AbstractMonster m = AbstractDungeon.getMonsters().monsters.get(i);
-
-                    if (m != null &&
-                            !m.isDeadOrEscaped() &&
-                            card.canUse(AbstractDungeon.player, m)) {
-
-                        validTargets.add(m);
-                    }
-                }
-            }
-
-            if (validTargets.isEmpty()) {
-                return null;
-            }
-
-            // Pick random valid monster
-            int randIndex = AbstractDungeon.cardRandomRng.random(validTargets.size() - 1);
-            AbstractMonster target = validTargets.get(randIndex);
-
-            int enemyIndex = AbstractDungeon.getMonsters().monsters.indexOf(target);
-
-            return new CardAction(card, enemyIndex);
-        }
-
-        // --- Non-targeted cards ---
-        if (card.target == AbstractCard.CardTarget.ALL_ENEMY ||
-                card.target == AbstractCard.CardTarget.ALL ||
-                card.target == AbstractCard.CardTarget.SELF ||
-                card.target == AbstractCard.CardTarget.NONE) {
-
-            if (card.canUse(AbstractDungeon.player, null)) {
-                return new CardAction(card);
-            }
-        }
-
-        return null;
-    }
 
     private void printMetrics(StateNode start, StateNode end) {
         //log to file since console is not visible/freezes
@@ -236,7 +186,7 @@ public class BattleAiController implements Controller {
         int remainingMonsters = ValueFunctions.getAliveMonsterCount(end.saveState);
 
         double fitness = (damageDealt * 2.0)
-                - (damageTaken * 3.0)
+                - (damageTaken * 5.0)
                 - (remainingHP * 1.0)
                 - (remainingMonsters * 10.0);
 
@@ -254,6 +204,7 @@ public class BattleAiController implements Controller {
 
 
     public void step() {
+        //TODO: determine invalid sequence -> e.g. card cannot be played -> truncate
         try{
             if (isDone) {
                 return;
@@ -326,6 +277,14 @@ public class BattleAiController implements Controller {
                         }
                         else{
                             //restart with new population
+
+                            currentState = startStateNode;
+                            startStateNode.saveState.loadState();
+                            //FileLogger.log("turns: " + GameActionManager.turn + " vs " + currentState.saveState.turn);
+
+                            List<CardSequence> parents = selectParents(finalSequences);
+                            sequences = nextGeneration(parents);
+                            finalSequences = new ArrayList<>();
 
                         }
                     }
@@ -439,6 +398,8 @@ public class BattleAiController implements Controller {
                 //try to use the saved choice
                 AbstractCard selectedCard = cardSequence.getNextGridSelectChoice();
                 dummyCommandQueue.offerFirst(new DummyGridSelectCommand(selectedCard));
+
+                //TODO: if choice does not exist, need to remove from buffer and handle it
             }
             else{
                 //random
@@ -567,60 +528,53 @@ public class BattleAiController implements Controller {
         return selected;
     }
 
-    private Queue<CardSequence> nextGeneration(
-            List<CardSequence> parents,
-            int elitismNum,
-            int crossoverNum,
-            int mutationNum,
-            double mutationRate
-    ) {
+    private Queue<CardSequence> nextGeneration(List<CardSequence> parents) {
         int parentSize = parents.size();
         Queue<CardSequence> nextGen = new ArrayDeque<>(parentSize);
         Random rand = new Random();
 
         // 1. Elitism: keep top N unchanged
-        for (int i = 0; i < elitismNum; i++) {
+        for (int i = 0; i < ELITENUM; i++) {
             nextGen.add(new CardSequence(parents.get(i)));
         }
 
-        // 2. Crossover + mutation-after-crossover
-        for (int i = 0; i < crossoverNum; i++) {
-            CardSequence parent1 = parents.get(rand.nextInt(parentSize));
-            CardSequence parent2 = parents.get(rand.nextInt(parentSize));
-            CardSequence child = crossover(parent1, parent2);
-
-            // Mutation-after-crossover (common GA practice)
-            if (rand.nextDouble() < mutationRate) {
-                child = mutate(child);
-            }
-
-            nextGen.add(child);
-        }
+//        // 2. Crossover + mutation-after-crossover
+//        for (int i = 0; i < crossoverNum; i++) {
+//            CardSequence parent1 = parents.get(rand.nextInt(parentSize));
+//            CardSequence parent2 = parents.get(rand.nextInt(parentSize));
+//            CardSequence child = crossover(parent1, parent2);
+//
+//            // Mutation-after-crossover (common GA practice)
+//            if (rand.nextDouble() < mutationRate) {
+//                child = mutate(child);
+//            }
+//
+//            nextGen.add(child);
+//        }
 
         // 3. Mutation-only offspring (mutated clones from single parents)
-        for (int i = 0; i < mutationNum; i++) {
+        for (int i = 0; i < MUTATIONSIZE; i++) {
             CardSequence parent = parents.get(rand.nextInt(parentSize));
             CardSequence mutant = mutate(parent);
             nextGen.add(mutant);
         }
 
         // 4. If the nextGen is short, fill with random parents
-        while (nextGen.size() < parentSize) {
-            nextGen.add(new CardSequence(parents.get(rand.nextInt(parentSize))));
+        while (nextGen.size() < POPULATIONSIZE) {
+            int idx = ELITENUM + rand.nextInt(parentSize - ELITENUM);
+            nextGen.add(new CardSequence(parents.get(idx)));
         }
 
         return nextGen;
     }
 
-    private CardSequence crossover(CardSequence parent1, CardSequence parent2){
-        CardSequence child = new CardSequence();
-
-        return child;
-    }
+//    private CardSequence crossover(CardSequence parent1, CardSequence parent2){
+//        return new CardSequence(parent1,parent2);
+//    }
 
     private CardSequence mutate(CardSequence parent){
         CardSequence child = new CardSequence(parent);
-
+        child.mutate();
 
         return child;
     }
