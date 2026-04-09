@@ -52,6 +52,11 @@ public class CardAction {
             return null;
         }
 
+        if(card.costForTurn == -2 ||
+                (AbstractDungeon.player.hasPower("Entangled") && card.type == AbstractCard.CardType.ATTACK)){
+            return null;
+        }
+
         // --- Cards that require enemy target ---
         if (card.target == AbstractCard.CardTarget.ENEMY ||
                 card.target == AbstractCard.CardTarget.SELF_AND_ENEMY) {

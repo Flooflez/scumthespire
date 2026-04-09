@@ -5,6 +5,7 @@ import battleaimod.battleai.StateNode;
 import battleaimod.battleai.data.dummycommands.DummyCommand;
 import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
+import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 
 import java.util.*;
 
@@ -111,6 +112,11 @@ public class CardSequence implements Comparable<CardSequence> {
             AbstractCard c = leftoverCardOrder.get(i);
 
             if(c.costForTurn != -2 && c.costForTurn <= energy){
+                if(AbstractDungeon.player.hasPower("Entangled") && c.type == AbstractCard.CardType.ATTACK){
+                    //entangled check
+                    continue;
+                }
+
                 //if a playable card is found, remove from leftoverCardOrder
                 //and add to cards list
                 leftoverCardOrder.remove(c);

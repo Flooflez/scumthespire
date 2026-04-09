@@ -126,6 +126,11 @@ public class BattleAiController implements Controller {
                     continue;
                 }
 
+                if(AbstractDungeon.player.hasPower("Entangled") && card.type == AbstractCard.CardType.ATTACK){
+                    //entangled edge case, makes attacks unplayable -> skip
+                    continue;
+                }
+
                 // X-cost card
                 if (cost == -1) {
                     CardAction action = CardAction.createCardAction(card);
