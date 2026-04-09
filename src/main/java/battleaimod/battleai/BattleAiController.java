@@ -59,7 +59,14 @@ public class BattleAiController implements Controller {
     private List<CardSequence> finalSequences;
     private StateNode currentState;
     private StateNode startStateNode;
-    private boolean shouldRunEndCommand;
+    private List<AbstractCard> startingHand;
+    private List<AbstractCard> previousHand;
+
+    private int currentGeneration = 0;
+    private final int GENERATIONS = 10;
+    private final int POPULATIONSIZE = 200;
+    private final int PARENTSIZE = 30;
+    private final int ELITENUM = 3;
 
     // EXPERIMENTAL
     public static final boolean SHOULD_SHOW_TREE = false;
@@ -86,6 +93,8 @@ public class BattleAiController implements Controller {
         if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null) {
             return population;
         }
+
+        startingHand = new ArrayList<>(AbstractDungeon.player.hand.group);
 
         FileLogger.log("starting hand: ");
         for (AbstractCard c : AbstractDungeon.player.hand.group){
@@ -272,7 +281,7 @@ public class BattleAiController implements Controller {
 
                 startingHealth = startState.getPlayerHealth();
 
-                sequences = generateInitPop(200);
+                sequences = generateInitPop(POPULATIONSIZE);
 
             }
             else{
@@ -280,6 +289,8 @@ public class BattleAiController implements Controller {
                     //IMPORTANT: SaveState MUST come in the next step after running a command to ensure effects propagate!
                     currentState.saveState = new SaveState();
                 }
+
+                addNewCardsInHand(currentCardSeq);
 
                 if(dummyCommandQueue == null || dummyCommandQueue.isEmpty()){
                     //not null check to skip first loop
@@ -291,18 +302,32 @@ public class BattleAiController implements Controller {
                         finalSequences.add(currentCardSeq);
                     }
 
+                    if(dummyCommandQueue != null && dummyCommandQueue.isEmpty()){
+                        if(checkUICommands(dummyCommandQueue, currentCardSeq)){
+                            return; //keep looping
+                        }
+                    }
+
+
                     if(sequences.isEmpty()){
                         //finished simulating all
 
                         //sort, get best end
                         Collections.sort(finalSequences);
 
-                        FileLogger.log("FINISHED SIMULATIONS");
+                        FileLogger.log("FINISHED GEN "+currentGeneration +" SIMULATIONS");
 
-                        bestEnd = finalSequences.get(0).getEndState();
-                        printMetrics(startStateNode, bestEnd);
-                        isDone = true;
-                        initialized = false;
+                        currentGeneration++;
+                        if(currentGeneration == GENERATIONS){
+                            bestEnd = finalSequences.get(0).getEndState();
+                            printMetrics(startStateNode, bestEnd);
+                            isDone = true;
+                            initialized = false;
+                        }
+                        else{
+                            //restart with new population
+
+                        }
                     }
                     else{
                         //init next sequence
@@ -388,7 +413,8 @@ public class BattleAiController implements Controller {
     }
 
 
-    private void checkUICommands(Deque<DummyCommand> dummyCommandQueue, CardSequence cardSequence){
+    private boolean checkUICommands(Deque<DummyCommand> dummyCommandQueue, CardSequence cardSequence){
+
         //FileLogger.log("checking UI commands");
         if (isInHandSelect()) {
             //FileLogger.log("getting card");
@@ -399,7 +425,7 @@ public class BattleAiController implements Controller {
                 dummyCommandQueue.offerFirst(new GeneralDummyCommand(HandSelectConfirmCommand.INSTANCE));
                 dummyCommandQueue.offerFirst(new DummyHandSelectCommand(card));
             }
-            return;
+            return true;
         }
 
         if (isInGridSelect()) {
@@ -423,7 +449,7 @@ public class BattleAiController implements Controller {
                 dummyCommandQueue.offerFirst(new DummyGridSelectCommand(randomCard));
                 cardSequence.addGridSelectChoiceToBuffer(randomCard); //setup for next time
             }
-            return;
+            return true;
         }
 
         if (isInCardRewardSelect()) { //literally just for Discover, just pick 0 every time, change later if needed
@@ -431,14 +457,13 @@ public class BattleAiController implements Controller {
 //            for(int i = 0; i < AbstractDungeon.cardRewardScreen.rewardGroup.size(); ++i) {
 //
 //            }
+            return true;
         }
+        return false;
 
     }
 
     private void checkExtraEnergy(Deque<DummyCommand> dummyCommandQueue, CardSequence cardSequence){
-        if (EnergyPanel.totalCount == 0){
-            return; //no energy, stop here
-        }
         CardAction a = cardSequence.getNextPlayableCard(EnergyPanel.totalCount);
         if(a == null){
             return; //no cards, stop here
@@ -455,18 +480,18 @@ public class BattleAiController implements Controller {
     }
 
     private static boolean isInGridSelect() {
-        FileLogger.log("checking grid select menu open");
+        //FileLogger.log("checking grid select menu open");
         return isInDungeon() && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT && AbstractDungeon.isScreenUp && AbstractDungeon.screen == AbstractDungeon.CurrentScreen.GRID;
     }
 
 
     private static boolean isInHandSelect() {
-        FileLogger.log("checking hand select menu open");
+        //FileLogger.log("checking hand select menu open");
         return isInDungeon() && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT && AbstractDungeon.isScreenUp && AbstractDungeon.screen == AbstractDungeon.CurrentScreen.HAND_SELECT;
     }
 
     private static boolean isInCardRewardSelect() {
-        FileLogger.log("checking card reward menu open");
+        //FileLogger.log("checking card reward menu open");
         return isInDungeon() && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT && AbstractDungeon.isScreenUp && AbstractDungeon.screen == AbstractDungeon.CurrentScreen.CARD_REWARD;
     }
 
@@ -474,5 +499,130 @@ public class BattleAiController implements Controller {
         return CardCrawlGame.mode == CardCrawlGame.GameMode.GAMEPLAY && AbstractDungeon.isPlayerInDungeon() && AbstractDungeon.currMapNode != null;
     }
 
+    private void addNewCardsInHand(CardSequence currentCardSeq) {
+        List<AbstractCard> newHand = new ArrayList<>(AbstractDungeon.player.hand.group);
+        if(previousHand == null){
+            previousHand = newHand; //init first previous hand
+            return; //first loop, no point checking anything
+        }
+
+        if (previousHand.size() > newHand.size()) {
+            // strictly larger before -> no cards were created
+            return;
+        }
+
+        List<AbstractCard> createdCards = new ArrayList<>();
+
+        for (AbstractCard card : newHand) {
+            if (!previousHand.contains(card)) {
+                createdCards.add(card);
+            }
+        }
+
+        currentCardSeq.addCardsCreated(createdCards);
+        previousHand = newHand;
+    }
+
+    private List<CardSequence> selectParents(List<CardSequence> sortedSequences) {
+        List<CardSequence> selected = new ArrayList<>();
+        int n = sortedSequences.size();
+        Random rand = new Random();
+
+        // top 3 elites
+        int eliteCount = Math.min(ELITENUM, n);
+        for (int i = 0; i < eliteCount; i++) {
+            selected.add(sortedSequences.get(i));
+        }
+
+        // If we already filled parent pool, return early
+        if (selected.size() >= PARENTSIZE) {
+            return selected.subList(0, PARENTSIZE);
+        }
+
+        // Build weights
+        double[] weights = new double[n];
+        double totalWeight = 0;
+
+        for (int i = 0; i < n; i++) {
+            weights[i] = n - i; // linear bias
+            totalWeight += weights[i];
+        }
+
+        // Fill remaining slots using weighted sampling
+        int remaining = PARENTSIZE - selected.size();
+
+        for (int p = 0; p < remaining; p++) {
+            double r = rand.nextDouble() * totalWeight;
+
+            double cumulative = 0;
+            for (int i = 0; i < n; i++) {
+                cumulative += weights[i];
+                if (r <= cumulative) {
+                    selected.add(sortedSequences.get(i));
+                    break;
+                }
+            }
+        }
+
+        return selected;
+    }
+
+    private Queue<CardSequence> nextGeneration(
+            List<CardSequence> parents,
+            int elitismNum,
+            int crossoverNum,
+            int mutationNum,
+            double mutationRate
+    ) {
+        int parentSize = parents.size();
+        Queue<CardSequence> nextGen = new ArrayDeque<>(parentSize);
+        Random rand = new Random();
+
+        // 1. Elitism: keep top N unchanged
+        for (int i = 0; i < elitismNum; i++) {
+            nextGen.add(new CardSequence(parents.get(i)));
+        }
+
+        // 2. Crossover + mutation-after-crossover
+        for (int i = 0; i < crossoverNum; i++) {
+            CardSequence parent1 = parents.get(rand.nextInt(parentSize));
+            CardSequence parent2 = parents.get(rand.nextInt(parentSize));
+            CardSequence child = crossover(parent1, parent2);
+
+            // Mutation-after-crossover (common GA practice)
+            if (rand.nextDouble() < mutationRate) {
+                child = mutate(child);
+            }
+
+            nextGen.add(child);
+        }
+
+        // 3. Mutation-only offspring (mutated clones from single parents)
+        for (int i = 0; i < mutationNum; i++) {
+            CardSequence parent = parents.get(rand.nextInt(parentSize));
+            CardSequence mutant = mutate(parent);
+            nextGen.add(mutant);
+        }
+
+        // 4. If the nextGen is short, fill with random parents
+        while (nextGen.size() < parentSize) {
+            nextGen.add(new CardSequence(parents.get(rand.nextInt(parentSize))));
+        }
+
+        return nextGen;
+    }
+
+    private CardSequence crossover(CardSequence parent1, CardSequence parent2){
+        CardSequence child = new CardSequence();
+
+        return child;
+    }
+
+    private CardSequence mutate(CardSequence parent){
+        CardSequence child = new CardSequence(parent);
+
+
+        return child;
+    }
 
 }

@@ -8,10 +8,14 @@ import com.megacrit.cardcrawl.cards.AbstractCard;
 import java.util.*;
 
 public class CardSequence implements Comparable<CardSequence> {
+    //TODO: there may be an issue with AbstractCards being saved directly vs saved as copies
 
     private final List<CardAction> cards;
+
     private final List<AbstractCard> leftoverCardOrder;
     private int leftoverCardIndex;
+
+    private List<AbstractCard> cardsCreated;
 
     private Queue<AbstractCard> gridSelectChoices;
     private List<AbstractCard> gridSelectChoicesBuffer;
@@ -29,6 +33,24 @@ public class CardSequence implements Comparable<CardSequence> {
         leftoverCardIndex = 0;
 
         gridSelectChoicesBuffer = new ArrayList<>();
+        cardsCreated = new ArrayList<>();
+    }
+
+    public CardSequence(CardSequence sequenceToCopy){
+        this.cards = new ArrayList<>(sequenceToCopy.getCards());
+        this.leftoverCardOrder = new ArrayList<>(sequenceToCopy.leftoverCardOrder);
+        leftoverCardIndex = 0;
+
+        gridSelectChoicesBuffer = new ArrayList<>();
+        //we want to copy all buffer to queue on copy
+        gridSelectChoices = new ArrayDeque<>(sequenceToCopy.gridSelectChoices);
+        gridSelectChoices.addAll(sequenceToCopy.gridSelectChoicesBuffer);
+
+        cardsCreated = new ArrayList<>(sequenceToCopy.cardsCreated);
+
+        leftoverCardOrder.addAll(sequenceToCopy.cardsCreated);
+        //TODO: this direct append may cause problems. we'll see
+
     }
 
     public List<CardAction> getCards() {
@@ -57,6 +79,8 @@ public class CardSequence implements Comparable<CardSequence> {
             AbstractCard c = leftoverCardOrder.get(i);
 
             if(c.costForTurn != -2 && c.costForTurn <= energy){
+                //if a playable card is found, remove from leftoverCardOrder
+                //and add to cards list
                 leftoverCardOrder.remove(c);
                 CardAction a = BattleAiController.createCardAction(c);
                 cards.add(a);
@@ -87,10 +111,10 @@ public class CardSequence implements Comparable<CardSequence> {
         return null;
     }
 
-    public void populateGridSelectChoices(){
-        if(!gridSelectChoicesBuffer.isEmpty()){
-            gridSelectChoices = new ArrayDeque<>(gridSelectChoicesBuffer);
-        }
+
+
+    public void addCardsCreated(List<AbstractCard> cardsCreated){
+        this.cardsCreated.addAll(cardsCreated);
     }
 
 
@@ -122,5 +146,14 @@ public class CardSequence implements Comparable<CardSequence> {
 
     public void setEndState(StateNode endState) {
         this.endState = endState;
+    }
+
+    public void scramble(){
+        Collections.shuffle(cards);
+        Collections.shuffle(leftoverCardOrder);
+
+        List<AbstractCard> list = new ArrayList<>(gridSelectChoices);
+        Collections.shuffle(list);
+        gridSelectChoices.clear();
     }
 }
