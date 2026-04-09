@@ -20,6 +20,7 @@ import savestate.CardState;
 import savestate.SaveState;
 import savestate.SaveStateMod;
 
+import java.io.File;
 import java.util.*;
 
 public class BattleAiController implements Controller {
@@ -270,6 +271,7 @@ public class BattleAiController implements Controller {
 
                         currentGeneration++;
                         if(currentGeneration == GENERATIONS){
+                            FileLogger.log("Finished all simulations:");
                             bestEnd = finalSequences.get(0).getEndState();
                             printMetrics(startStateNode, bestEnd);
                             isDone = true;

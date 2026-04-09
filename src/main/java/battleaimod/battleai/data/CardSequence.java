@@ -115,7 +115,9 @@ public class CardSequence implements Comparable<CardSequence> {
                 //and add to cards list
                 leftoverCardOrder.remove(c);
                 CardAction a = CardAction.createCardAction(c);
-                cards.add(a);
+                if (a != null) {
+                    cards.add(a);
+                }
 
                 return a;
             }
@@ -257,7 +259,10 @@ public class CardSequence implements Comparable<CardSequence> {
         if(selectedAction == null){
             FileLogger.log("size: " + cards.size());
             FileLogger.log("cardActionIdx:"+ cardActionIdx);
-            for(CardAction c : cards) FileLogger.log(c.toString());
+            for(CardAction c : cards){
+                if(c == null) FileLogger.log("null");
+                else FileLogger.log(c.toString());
+            }
         }
         AbstractCard actionCard = selectedAction.getMainCard();
 

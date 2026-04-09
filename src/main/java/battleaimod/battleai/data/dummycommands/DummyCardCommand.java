@@ -28,6 +28,7 @@ public class DummyCardCommand implements DummyCommand {
 
         //TODO: error check for card not found
         if(cardIndex == -1){
+            FileLogger.logError("DummyCardCommand error");
             FileLogger.logError("card not found: " + card + " id: " + card.getMetricID());
             FileLogger.logError("hand: " + AbstractDungeon.player.hand.group);
             for (AbstractCard c : AbstractDungeon.player.hand.group){

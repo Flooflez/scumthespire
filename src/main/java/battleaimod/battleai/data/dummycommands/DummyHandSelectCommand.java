@@ -18,6 +18,7 @@ public class DummyHandSelectCommand implements DummyCommand{
         int cardIndex = DummyCommand.getCardIndexFromHand(card);
 
         if(cardIndex == -1){
+            FileLogger.logError("DummyHandSelectCommand error");
             FileLogger.logError("card not found: " + card + " id: " + card.getMetricID());
             FileLogger.logError("hand: " + AbstractDungeon.player.hand.group);
             for (AbstractCard c : AbstractDungeon.player.hand.group){

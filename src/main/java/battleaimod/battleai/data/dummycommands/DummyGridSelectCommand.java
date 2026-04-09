@@ -1,5 +1,6 @@
 package battleaimod.battleai.data.dummycommands;
 
+import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import ludicrousspeed.simulator.commands.Command;
@@ -30,6 +31,7 @@ public class DummyGridSelectCommand implements DummyCommand{
 
         if(cardIndex == -1){
             if(looseCardIndex == -1){
+                FileLogger.logError("DummyGridSelectCommand error");
                 return null;
             }
             return new GridSelectCommand(looseCardIndex);
