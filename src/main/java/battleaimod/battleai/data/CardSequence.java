@@ -119,9 +119,9 @@ public class CardSequence implements Comparable<CardSequence> {
 
                 //if a playable card is found, remove from leftoverCardOrder
                 //and add to cards list
-                leftoverCardOrder.remove(c);
                 CardAction a = CardAction.createCardAction(c);
                 if (a != null) {
+                    leftoverCardOrder.remove(c);
                     cards.add(a);
                 }
 
@@ -150,7 +150,6 @@ public class CardSequence implements Comparable<CardSequence> {
         }
         return null;
     }
-
 
 
     public void addCardsCreated(List<AbstractCard> cardsCreated){
@@ -192,6 +191,8 @@ public class CardSequence implements Comparable<CardSequence> {
     public void mutate() {
         Random rand = new Random();
 
+        int startingSize = cards.size();
+
         // Determine how many times to apply each mutation (tweak max values as desired)
         int swapCardActionsTimes    = rand.nextInt(4); // 0-3 times
         int swapAbstractCardsTimes  = rand.nextInt(4); // 0-3 times
@@ -214,6 +215,7 @@ public class CardSequence implements Comparable<CardSequence> {
         for (Runnable job : jobs) {
             job.run();
         }
+
     }
 
     public void scrambleLeftovers(){
@@ -224,6 +226,7 @@ public class CardSequence implements Comparable<CardSequence> {
         List<AbstractCard> list = new ArrayList<>(gridSelectChoices);
         Collections.shuffle(list);
         gridSelectChoices.clear();
+        gridSelectChoices.addAll(list);
     }
 
     public void swapTwoRandomCardActions() {
@@ -263,12 +266,7 @@ public class CardSequence implements Comparable<CardSequence> {
         int cardActionIdx = rand.nextInt(cards.size());
         CardAction selectedAction = cards.get(cardActionIdx);
         if(selectedAction == null){
-            FileLogger.log("size: " + cards.size());
-            FileLogger.log("cardActionIdx:"+ cardActionIdx);
-            for(CardAction c : cards){
-                if(c == null) FileLogger.log("null");
-                else FileLogger.log(c.toString());
-            }
+            FileLogger.log("selectedAction was null");
         }
         AbstractCard actionCard = selectedAction.getMainCard();
 

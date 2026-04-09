@@ -20,7 +20,6 @@ import savestate.CardState;
 import savestate.SaveState;
 import savestate.SaveStateMod;
 
-import java.io.File;
 import java.util.*;
 
 public class BattleAiController implements Controller {
@@ -63,7 +62,7 @@ public class BattleAiController implements Controller {
     private List<AbstractCard> previousHand;
 
     private int currentGeneration = 0;
-    private final int GENERATIONS = 5;
+    private final int GENERATIONS = 2;
     private final int POPULATIONSIZE = 200;
     private final int MUTATIONSIZE = 170;
     private final int PARENTSIZE = 50;
@@ -174,7 +173,7 @@ public class BattleAiController implements Controller {
 
 
 
-    private void printMetrics(StateNode start, StateNode end) {
+    private void printMetrics(StateNode start, StateNode end, CardSequence finalSequence) {
         //log to file since console is not visible/freezes
         FileLogger.log("SIMULATION RESULTS:");
         FileLogger.log("Player HP: " + end.saveState.getPlayerHealth());
@@ -182,6 +181,14 @@ public class BattleAiController implements Controller {
         FileLogger.log("Damage Dealt: " + ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState));
         FileLogger.log("Monster HP: " + ValueFunctions.getTotalMonsterHealth(end.saveState));
         FileLogger.log("Score: " + getFitness(start, end));
+        FileLogger.log("Final Cards: ");
+        for(CardAction a : finalSequence.getCards()){
+            FileLogger.log("   "+a.getMainCard().toString());
+        }
+        FileLogger.log("Starting Hand: ");
+        for(AbstractCard c : startingHand){
+            FileLogger.log("   "+c);
+        }
         FileLogger.log("==========================");
     }
 
@@ -278,7 +285,7 @@ public class BattleAiController implements Controller {
                         if(currentGeneration == GENERATIONS){
                             FileLogger.log("Finished all simulations:");
                             bestEnd = finalSequences.get(0).getEndState();
-                            printMetrics(startStateNode, bestEnd);
+                            printMetrics(startStateNode, bestEnd, finalSequences.get(0));
                             isDone = true;
                             initialized = false;
                         }
@@ -483,6 +490,7 @@ public class BattleAiController implements Controller {
 
         for (AbstractCard card : newHand) {
             if (!previousHand.contains(card)) {
+                //TODO: contains check doesn't work at all lol, find other method
                 createdCards.add(card);
             }
         }
