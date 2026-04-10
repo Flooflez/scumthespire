@@ -60,6 +60,7 @@ public class BattleAiController implements Controller {
     private StateNode startStateNode;
     private List<AbstractCard> startingHand;
     private List<AbstractCard> previousHand;
+    private boolean lastCmdNull = false;
 
     private int currentGeneration = 0;
     private final int GENERATIONS = 2;
@@ -246,6 +247,7 @@ public class BattleAiController implements Controller {
                 startingHealth = startState.getPlayerHealth();
 
                 sequences = generateInitPop(POPULATIONSIZE);
+                lastCmdNull = false;
 
             }
             else{
@@ -254,7 +256,11 @@ public class BattleAiController implements Controller {
                     currentState.saveState = new SaveState();
                 }
 
-                addNewCardsInHand(currentCardSeq);
+                if(!lastCmdNull){
+                    addNewCardsInHand(currentCardSeq);
+                }
+                lastCmdNull = false;
+
 
                 if(dummyCommandQueue == null || dummyCommandQueue.isEmpty()){
                     //not null check to skip first loop
@@ -334,6 +340,7 @@ public class BattleAiController implements Controller {
 
                 if(cmd == null){
                     FileLogger.log("cmd was null, skipping cmd");
+                    lastCmdNull = true;
                     //TODO: if needed, save DummyCard from poll and implement toString()
                 }
                 else{
@@ -444,7 +451,7 @@ public class BattleAiController implements Controller {
             return; //no cards, stop here
         }
 
-        FileLogger.log("has extra energy and extra cards: " + EnergyPanel.totalCount);
+        //FileLogger.log("has extra energy and extra cards: " + EnergyPanel.totalCount);
 
         List<DummyCommand> cmds = a.getDummyCommands();
         Collections.reverse(cmds);
@@ -488,12 +495,19 @@ public class BattleAiController implements Controller {
 
         List<AbstractCard> createdCards = new ArrayList<>();
 
-        for (AbstractCard card : newHand) {
-            if (!previousHand.contains(card)) {
-                //TODO: contains check doesn't work at all lol, find other method
-                createdCards.add(card);
-            }
-        }
+//        FileLogger.log("new cards detected from new hand: ");
+//        for(AbstractCard c : newHand){
+//            FileLogger.log("   "+c);
+//        }
+//        FileLogger.log("old hand: ");
+//        for(AbstractCard c : previousHand){
+//            FileLogger.log("   "+c);
+//        }
+//
+//        for (int i = previousHand.size()-1; i < newHand.size(); i++) {
+//            FileLogger.log("new card: " + newHand.get(i));
+//            createdCards.add(newHand.get(i));
+//        }
 
         currentCardSeq.addCardsCreated(createdCards);
         previousHand = newHand;
