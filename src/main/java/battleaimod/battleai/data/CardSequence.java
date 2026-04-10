@@ -92,11 +92,23 @@ public class CardSequence implements Comparable<CardSequence> {
 
     public AbstractCard getNextHandSelectCard(){
         if(leftoverCardIndex == leftoverCardOrder.size()){ //ran out of leftovers
-            if (cards.isEmpty()) return null;
-            //no more cards, handled in BattleAiController
+            if(cardsCreated.isEmpty()){ //check if we drew or created anything
+                if (cards.isEmpty()) return null;
+                    //no more cards AT ALL, something is wrong -> handled in BattleAiController
+                else{
+                    //choose last card in play sequence to discard/exhaust
+                    AbstractCard c = cards.remove(cards.size()-1).getMainCard();
+                    leftoverCardOrder.add(c);
+                    return c;
+                }
+            }
+            else{ //something was created/drawn, select that first
+                AbstractCard c = cardsCreated.remove(cardsCreated.size()-1);
+                leftoverCardOrder.add(c);
+                return c;
+            }
 
-            else return cards.remove(cards.size()-1).getMainCard();
-            //choose last card in play sequence to discard/exhaust
+
         }
         else{
             return leftoverCardOrder.get(leftoverCardIndex++); //get next leftover and iterate

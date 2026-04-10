@@ -64,6 +64,7 @@ public class BattleAiController implements Controller {
     private int previousDrawPileSize;
     private boolean lastCmdNull = false;
     private boolean lastCmdEnd = false;
+    private boolean currSequenceValid = true;
 
     private int currentGeneration = 0;
     private final int GENERATIONS = 5;
@@ -254,6 +255,13 @@ public class BattleAiController implements Controller {
 
             }
             else{
+                if(!currSequenceValid){
+                    //kill this sim and discard it
+                    FileLogger.logError("Invalid sequence detected, discarding sim...");
+                    dummyCommandQueue = null;
+                    currentCardSeq = null;
+                }
+
                 if(currentState.saveState == null){
                     //IMPORTANT: SaveState MUST come in the next step after running a command to ensure effects propagate!
                     currentState.saveState = new SaveState();
@@ -424,10 +432,15 @@ public class BattleAiController implements Controller {
             //FileLogger.log("getting card");
             AbstractCard card = cardSequence.getNextHandSelectCard();
             //FileLogger.log("finished get");
-            if(card != null){//null shouldn't happen since isInHandSelect will be false
+            if(card != null){
                 //FileLogger.log("putting commands in");
                 dummyCommandQueue.offerFirst(new GeneralDummyCommand(HandSelectConfirmCommand.INSTANCE));
                 dummyCommandQueue.offerFirst(new DummyHandSelectCommand(card));
+            }
+            else{
+                FileLogger.logError("Ran out of all cards to select!");
+                currSequenceValid = false;
+
             }
             return true;
         }
@@ -506,6 +519,11 @@ public class BattleAiController implements Controller {
     }
 
     private void addNewCardsInHand(CardSequence currentCardSeq) {
+        if(currentCardSeq == null){
+            FileLogger.logError("currentCardSeq null in addNewCardsInHand, skipping");
+            return;
+        }
+
         List<AbstractCard> newHand = new ArrayList<>(AbstractDungeon.player.hand.group);
 
         int newDrawPileSize = AbstractDungeon.player.drawPile.size();
@@ -656,6 +674,8 @@ public class BattleAiController implements Controller {
         lastCmdEnd = false;
         previousDrawPileSize = AbstractDungeon.player.drawPile.size();
         previousHand = null;
+
+        currSequenceValid = true;
     }
 
 }
