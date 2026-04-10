@@ -66,7 +66,7 @@ public class BattleAiController implements Controller {
     private boolean lastCmdEnd = false;
 
     private int currentGeneration = 0;
-    private final int GENERATIONS = 2;
+    private final int GENERATIONS = 5;
     private final int POPULATIONSIZE = 200;
     private final int MUTATIONSIZE = 170;
     private final int PARENTSIZE = 50;
@@ -262,6 +262,11 @@ public class BattleAiController implements Controller {
                 if(!lastCmdNull && !lastCmdEnd){ //don't check new cards drawn if last command failed or was end
                     addNewCardsInHand(currentCardSeq);
                 }
+
+                //regardless if we added new cards or not, keep these vars updated
+                List<AbstractCard> newHand = new ArrayList<>(AbstractDungeon.player.hand.group);
+                previousHand = newHand;
+                previousDrawPileSize = AbstractDungeon.player.drawPile.size();
                 lastCmdNull = false;
                 lastCmdEnd = false;
 
@@ -275,9 +280,9 @@ public class BattleAiController implements Controller {
 
                     if (currentCardSeq != null) { //not null check to skip first loop
                         //eval score, add to final sorting list
-//                        FileLogger.log("Finished single sim");
-//                        FileLogger.log("last command: " +currentState.lastCommand);
-//                        FileLogger.log("size of node list: "+ stateNodesToGetToNode(currentState).size());
+                        FileLogger.log("Finished single sim");
+                        FileLogger.log("last command: " +currentState.lastCommand);
+                        FileLogger.log("size of node list: "+ stateNodesToGetToNode(currentState).size());
 
                         double turnFitness = getFitness(startStateNode, currentState);
                         currentCardSeq.setFitness(turnFitness);
@@ -322,7 +327,7 @@ public class BattleAiController implements Controller {
                     }
                     else{
                         //init next sequence
-                        //FileLogger.log("new sequence init!");
+                        FileLogger.log("new sequence init!");
                         currentCardSeq = sequences.poll(); //just so we can save it and evolve later
                         dummyCommandQueue = actionsToCommands(currentCardSeq.getCards());
                         //get queue of commands to run
@@ -358,9 +363,10 @@ public class BattleAiController implements Controller {
                 }
                 else{
                     StateNode next = new StateNode(currentState, cmd, this);
-                    //FileLogger.log("Playing command: " + cmd);
+                    FileLogger.log("Playing command: " + cmd);
 
                     if(cmd instanceof EndCommand){
+                        FileLogger.log("is end command true!");
                         lastCmdEnd = true;
                     }
                     cmd.execute();
@@ -506,10 +512,10 @@ public class BattleAiController implements Controller {
 
         if(previousHand == null){
             previousHand = newHand; //init first previous hand
-//            FileLogger.log("starting hand: ");
-//            for(AbstractCard c : previousHand){
-//                FileLogger.log("   "+c);
-//            }
+            FileLogger.log("starting hand: ");
+            for(AbstractCard c : previousHand){
+                FileLogger.log("   "+c);
+            }
             return; //first loop, no point checking anything
         }
 
@@ -532,23 +538,21 @@ public class BattleAiController implements Controller {
 
         List<AbstractCard> createdCards = new ArrayList<>();
 
-//        FileLogger.log("new cards detected from new hand: ");
-//        for(AbstractCard c : newHand){
-//            FileLogger.log("   "+c);
-//        }
-//        FileLogger.log("old hand: ");
-//        for(AbstractCard c : previousHand){
-//            FileLogger.log("   "+c);
-//        }
+        FileLogger.log("new cards detected from new hand: ");
+        for(AbstractCard c : newHand){
+            FileLogger.log("   "+c);
+        }
+        FileLogger.log("old hand: ");
+        for(AbstractCard c : previousHand){
+            FileLogger.log("   "+c);
+        }
 
         for (int i = previousHand.size()-1; i < newHand.size(); i++) {
-            //FileLogger.log("new card: " + newHand.get(i));
+            FileLogger.log("new card: " + newHand.get(i));
             createdCards.add(newHand.get(i));
         }
 
         currentCardSeq.addCardsCreated(createdCards);
-        previousHand = newHand;
-        previousDrawPileSize = newDrawPileSize;
     }
 
     private List<CardSequence> selectParents(List<CardSequence> sortedSequences) {
