@@ -554,7 +554,7 @@ public class BattleAiController implements Controller {
             }
         }
 
-        List<AbstractCard> createdCards = new ArrayList<>();
+
 
         FileLogger.log("new cards detected from new hand: ");
         for(AbstractCard c : newHand){
@@ -565,6 +565,14 @@ public class BattleAiController implements Controller {
             FileLogger.log("   "+c);
         }
 
+        if(previousHand.isEmpty()){
+            //then all the cards in newHand are new
+            FileLogger.log("old hand is empty, adding all newHand cards");
+            currentCardSeq.addCardsCreated(newHand);
+            return;
+        }
+
+        List<AbstractCard> createdCards = new ArrayList<>();
         for (int i = previousHand.size()-1; i < newHand.size(); i++) {
             FileLogger.log("new card: " + newHand.get(i));
             createdCards.add(newHand.get(i));

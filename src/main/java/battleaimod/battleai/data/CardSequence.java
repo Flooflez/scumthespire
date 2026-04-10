@@ -17,10 +17,10 @@ public class CardSequence implements Comparable<CardSequence> {
     private final List<AbstractCard> leftoverCardOrder;
     private int leftoverCardIndex;
 
-    private List<AbstractCard> cardsCreated;
+    private final List<AbstractCard> cardsCreated;
 
-    private Queue<AbstractCard> gridSelectChoices;
-    private List<AbstractCard> gridSelectChoicesBuffer;
+    private final Queue<AbstractCard> gridSelectChoices;
+    private final List<AbstractCard> gridSelectChoicesBuffer;
     //for first generation when we are presented with a grid select menu, pick randomly and add to buffer
     //subsequent generations will read selections from the buffer via the gridSelectChoices queue
     //if the card is not available to be chosen, a random one will be picked and the card will be overwritten in the buffer
@@ -35,6 +35,7 @@ public class CardSequence implements Comparable<CardSequence> {
         leftoverCardIndex = 0;
 
         gridSelectChoicesBuffer = new ArrayList<>();
+        gridSelectChoices = new ArrayDeque<>();
         cardsCreated = new ArrayList<>();
     }
 
@@ -99,12 +100,14 @@ public class CardSequence implements Comparable<CardSequence> {
                     //choose last card in play sequence to discard/exhaust
                     AbstractCard c = cards.remove(cards.size()-1).getMainCard();
                     leftoverCardOrder.add(c);
+                    leftoverCardIndex++;
                     return c;
                 }
             }
             else{ //something was created/drawn, select that first
                 AbstractCard c = cardsCreated.remove(cardsCreated.size()-1);
                 leftoverCardOrder.add(c);
+                leftoverCardIndex++;
                 return c;
             }
 
