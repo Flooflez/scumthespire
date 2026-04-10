@@ -224,6 +224,7 @@ public class AiServer {
         JsonArray commands = new JsonArray();
 
         List<StateNode> stateNodes = BattleAiController.stateNodesToGetToNode(root);
+        FileLogger.log("stateNodes in commandsForStateNode size: " + stateNodes.size());
 
         // Print the best path for debugging
         Iterator<StateNode> printIterator = stateNodes.iterator();

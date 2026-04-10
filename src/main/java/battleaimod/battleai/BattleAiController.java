@@ -20,6 +20,7 @@ import savestate.CardState;
 import savestate.SaveState;
 import savestate.SaveStateMod;
 
+import java.io.File;
 import java.util.*;
 
 public class BattleAiController implements Controller {
@@ -244,7 +245,6 @@ public class BattleAiController implements Controller {
                 startStateNode = new StateNode(null, null, this);
                 startStateNode.saveState = startingState;
                 currentState = startStateNode;
-                //FileLogger.log("turns: " + GameActionManager.turn + " vs " + currentState.saveState.turn);
 
                 startingHealth = startState.getPlayerHealth();
 
@@ -275,6 +275,10 @@ public class BattleAiController implements Controller {
 
                     if (currentCardSeq != null) { //not null check to skip first loop
                         //eval score, add to final sorting list
+//                        FileLogger.log("Finished single sim");
+//                        FileLogger.log("last command: " +currentState.lastCommand);
+//                        FileLogger.log("size of node list: "+ stateNodesToGetToNode(currentState).size());
+
                         double turnFitness = getFitness(startStateNode, currentState);
                         currentCardSeq.setFitness(turnFitness);
                         currentCardSeq.setEndState(currentState);
@@ -294,6 +298,9 @@ public class BattleAiController implements Controller {
                         if(currentGeneration == GENERATIONS){
                             FileLogger.log("Finished all simulations:");
                             bestEnd = finalSequences.get(0).getEndState();
+
+                            //FileLogger.log("size of node list: "+ stateNodesToGetToNode(bestEnd).size());
+
                             printMetrics(startStateNode, bestEnd, finalSequences.get(0));
                             isDone = true;
                             initialized = false;
@@ -303,11 +310,11 @@ public class BattleAiController implements Controller {
 
                             currentState = startStateNode;
                             startStateNode.saveState.loadState();
-                            //FileLogger.log("turns: " + GameActionManager.turn + " vs " + currentState.saveState.turn);
 
                             List<CardSequence> parents = selectParents(finalSequences);
                             sequences = nextGeneration(parents);
                             finalSequences = new ArrayList<>();
+                            currentCardSeq = null;
 
                             resetLoopVars();
 
@@ -315,7 +322,7 @@ public class BattleAiController implements Controller {
                     }
                     else{
                         //init next sequence
-                        FileLogger.log("new sequence init!");
+                        //FileLogger.log("new sequence init!");
                         currentCardSeq = sequences.poll(); //just so we can save it and evolve later
                         dummyCommandQueue = actionsToCommands(currentCardSeq.getCards());
                         //get queue of commands to run
@@ -351,7 +358,7 @@ public class BattleAiController implements Controller {
                 }
                 else{
                     StateNode next = new StateNode(currentState, cmd, this);
-                    FileLogger.log("Playing command: " + cmd);
+                    //FileLogger.log("Playing command: " + cmd);
 
                     if(cmd instanceof EndCommand){
                         lastCmdEnd = true;
@@ -499,10 +506,10 @@ public class BattleAiController implements Controller {
 
         if(previousHand == null){
             previousHand = newHand; //init first previous hand
-            FileLogger.log("starting hand: ");
-            for(AbstractCard c : previousHand){
-                FileLogger.log("   "+c);
-            }
+//            FileLogger.log("starting hand: ");
+//            for(AbstractCard c : previousHand){
+//                FileLogger.log("   "+c);
+//            }
             return; //first loop, no point checking anything
         }
 
@@ -525,17 +532,17 @@ public class BattleAiController implements Controller {
 
         List<AbstractCard> createdCards = new ArrayList<>();
 
-        FileLogger.log("new cards detected from new hand: ");
-        for(AbstractCard c : newHand){
-            FileLogger.log("   "+c);
-        }
-        FileLogger.log("old hand: ");
-        for(AbstractCard c : previousHand){
-            FileLogger.log("   "+c);
-        }
+//        FileLogger.log("new cards detected from new hand: ");
+//        for(AbstractCard c : newHand){
+//            FileLogger.log("   "+c);
+//        }
+//        FileLogger.log("old hand: ");
+//        for(AbstractCard c : previousHand){
+//            FileLogger.log("   "+c);
+//        }
 
         for (int i = previousHand.size()-1; i < newHand.size(); i++) {
-            FileLogger.log("new card: " + newHand.get(i));
+            //FileLogger.log("new card: " + newHand.get(i));
             createdCards.add(newHand.get(i));
         }
 
