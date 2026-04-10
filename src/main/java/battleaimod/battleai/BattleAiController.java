@@ -60,7 +60,9 @@ public class BattleAiController implements Controller {
     private StateNode startStateNode;
     private List<AbstractCard> startingHand;
     private List<AbstractCard> previousHand;
+    private int previousDrawPileSize;
     private boolean lastCmdNull = false;
+    private boolean lastCmdEnd = false;
 
     private int currentGeneration = 0;
     private final int GENERATIONS = 2;
@@ -247,7 +249,8 @@ public class BattleAiController implements Controller {
                 startingHealth = startState.getPlayerHealth();
 
                 sequences = generateInitPop(POPULATIONSIZE);
-                lastCmdNull = false;
+
+                resetLoopVars();
 
             }
             else{
@@ -256,26 +259,26 @@ public class BattleAiController implements Controller {
                     currentState.saveState = new SaveState();
                 }
 
-                if(!lastCmdNull){
+                if(!lastCmdNull && !lastCmdEnd){ //don't check new cards drawn if last command failed or was end
                     addNewCardsInHand(currentCardSeq);
                 }
                 lastCmdNull = false;
+                lastCmdEnd = false;
 
 
                 if(dummyCommandQueue == null || dummyCommandQueue.isEmpty()){
-                    //not null check to skip first loop
-                    if (currentCardSeq != null) {
+                    if(dummyCommandQueue != null){ //check if we have any UI to clear
+                        if(checkUICommands(dummyCommandQueue, currentCardSeq)){
+                            return; //keep looping
+                        }
+                    }
+
+                    if (currentCardSeq != null) { //not null check to skip first loop
                         //eval score, add to final sorting list
                         double turnFitness = getFitness(startStateNode, currentState);
                         currentCardSeq.setFitness(turnFitness);
                         currentCardSeq.setEndState(currentState);
                         finalSequences.add(currentCardSeq);
-                    }
-
-                    if(dummyCommandQueue != null && dummyCommandQueue.isEmpty()){
-                        if(checkUICommands(dummyCommandQueue, currentCardSeq)){
-                            return; //keep looping
-                        }
                     }
 
 
@@ -306,13 +309,18 @@ public class BattleAiController implements Controller {
                             sequences = nextGeneration(parents);
                             finalSequences = new ArrayList<>();
 
+                            resetLoopVars();
+
                         }
                     }
                     else{
                         //init next sequence
+                        FileLogger.log("new sequence init!");
                         currentCardSeq = sequences.poll(); //just so we can save it and evolve later
                         dummyCommandQueue = actionsToCommands(currentCardSeq.getCards());
                         //get queue of commands to run
+
+                        resetLoopVars();
 
                         currentState = startStateNode;
                         startStateNode.saveState.loadState(); //reset sim to start
@@ -332,11 +340,9 @@ public class BattleAiController implements Controller {
                     if(cmd instanceof EndCommand){
                         checkExtraEnergy(dummyCommandQueue, currentCardSeq);
                     }
-
                 }
 
                 cmd = dummyCommandQueue.poll().getRealCommand(); //overwrite old command with new one
-
 
                 if(cmd == null){
                     FileLogger.log("cmd was null, skipping cmd");
@@ -345,6 +351,11 @@ public class BattleAiController implements Controller {
                 }
                 else{
                     StateNode next = new StateNode(currentState, cmd, this);
+                    FileLogger.log("Playing command: " + cmd);
+
+                    if(cmd instanceof EndCommand){
+                        lastCmdEnd = true;
+                    }
                     cmd.execute();
                     currentState = next;
                 }
@@ -483,8 +494,15 @@ public class BattleAiController implements Controller {
 
     private void addNewCardsInHand(CardSequence currentCardSeq) {
         List<AbstractCard> newHand = new ArrayList<>(AbstractDungeon.player.hand.group);
+
+        int newDrawPileSize = AbstractDungeon.player.drawPile.size();
+
         if(previousHand == null){
             previousHand = newHand; //init first previous hand
+            FileLogger.log("starting hand: ");
+            for(AbstractCard c : previousHand){
+                FileLogger.log("   "+c);
+            }
             return; //first loop, no point checking anything
         }
 
@@ -492,25 +510,38 @@ public class BattleAiController implements Controller {
             // strictly larger before -> no cards were created
             return;
         }
+        if (previousHand.size() == newHand.size()){
+            if(newDrawPileSize == previousDrawPileSize){ //check if we actually drew anything
+                //there's a chance we generated 1 card, so check if its equal
+                AbstractCard potentialNewCard = newHand.get(newHand.size()-1);
+                AbstractCard oldCard = previousHand.get(previousHand.size()-1);
+
+                if(potentialNewCard.name.equals(oldCard.name)){
+                    //just check name since card generating itself is impossible
+                    return; //nothing was drawn
+                }
+            }
+        }
 
         List<AbstractCard> createdCards = new ArrayList<>();
 
-//        FileLogger.log("new cards detected from new hand: ");
-//        for(AbstractCard c : newHand){
-//            FileLogger.log("   "+c);
-//        }
-//        FileLogger.log("old hand: ");
-//        for(AbstractCard c : previousHand){
-//            FileLogger.log("   "+c);
-//        }
-//
-//        for (int i = previousHand.size()-1; i < newHand.size(); i++) {
-//            FileLogger.log("new card: " + newHand.get(i));
-//            createdCards.add(newHand.get(i));
-//        }
+        FileLogger.log("new cards detected from new hand: ");
+        for(AbstractCard c : newHand){
+            FileLogger.log("   "+c);
+        }
+        FileLogger.log("old hand: ");
+        for(AbstractCard c : previousHand){
+            FileLogger.log("   "+c);
+        }
+
+        for (int i = previousHand.size()-1; i < newHand.size(); i++) {
+            FileLogger.log("new card: " + newHand.get(i));
+            createdCards.add(newHand.get(i));
+        }
 
         currentCardSeq.addCardsCreated(createdCards);
         previousHand = newHand;
+        previousDrawPileSize = newDrawPileSize;
     }
 
     private List<CardSequence> selectParents(List<CardSequence> sortedSequences) {
@@ -606,6 +637,14 @@ public class BattleAiController implements Controller {
         child.mutate();
 
         return child;
+    }
+
+    private void resetLoopVars(){
+        //new loop reset vars
+        lastCmdNull = false;
+        lastCmdEnd = false;
+        previousDrawPileSize = AbstractDungeon.player.drawPile.size();
+        previousHand = null;
     }
 
 }
