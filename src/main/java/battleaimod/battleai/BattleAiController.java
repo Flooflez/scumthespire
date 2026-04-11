@@ -65,13 +65,15 @@ public class BattleAiController implements Controller {
     private boolean lastCmdNull = false;
     private boolean lastCmdEnd = false;
     private boolean currSequenceValid = true;
+    private int numEnemies= 0;
+    //private int cardsPlayed = 0;
 
     private int currentGeneration = 0;
-    private final int GENERATIONS = 5;
-    private final int POPULATIONSIZE = 200;
-    private final int MUTATIONSIZE = 170;
-    private final int PARENTSIZE = 50;
-    private final int ELITENUM = 10;
+    private final int GENERATIONS = 10;
+    private final int POPULATIONSIZE = 100;
+    private final int MUTATIONSIZE = 85;
+    private final int PARENTSIZE = 25;
+    private final int ELITENUM = 5;
 
     // EXPERIMENTAL
     public static final boolean SHOULD_SHOW_TREE = false;
@@ -222,7 +224,6 @@ public class BattleAiController implements Controller {
 
 
     public void step() {
-        //TODO: determine invalid sequence -> e.g. card cannot be played -> truncate
         try{
             if (isDone) {
                 return;
@@ -253,6 +254,7 @@ public class BattleAiController implements Controller {
 
                 resetLoopVars();
 
+                FileLogger.log("enemy count: " + numEnemies);
             }
             else{
                 if(!currSequenceValid){
@@ -270,6 +272,7 @@ public class BattleAiController implements Controller {
                 if(!lastCmdNull && !lastCmdEnd){ //don't check new cards drawn if last command failed or was end
                     addNewCardsInHand(currentCardSeq);
                 }
+                numEnemies = ValueFunctions.getAliveMonsterCount(startingState);
 
                 //regardless if we added new cards or not, keep these vars updated
                 List<AbstractCard> newHand = new ArrayList<>(AbstractDungeon.player.hand.group);
@@ -488,7 +491,8 @@ public class BattleAiController implements Controller {
             return; //no cards, stop here
         }
 
-        //FileLogger.log("has extra energy and extra cards: " + EnergyPanel.totalCount);
+        FileLogger.log("has playable cards! energy = " + EnergyPanel.totalCount);
+        FileLogger.log("extra card: " + a.getMainCard());
 
         List<DummyCommand> cmds = a.getDummyCommands();
         Collections.reverse(cmds);
@@ -653,6 +657,7 @@ public class BattleAiController implements Controller {
         for (int i = 0; i < MUTATIONSIZE; i++) {
             CardSequence parent = parents.get(rand.nextInt(parentSize));
             CardSequence mutant = mutate(parent);
+            //FileLogger.log("mutant cards.size(): " + mutant.getCards().size());
             nextGen.add(mutant);
         }
 
@@ -671,7 +676,7 @@ public class BattleAiController implements Controller {
 
     private CardSequence mutate(CardSequence parent){
         CardSequence child = new CardSequence(parent);
-        child.mutate();
+        child.mutate(numEnemies);
 
         return child;
     }

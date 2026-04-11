@@ -19,7 +19,16 @@ public class CardAction {
      */
 
     private final AbstractCard mainCard;
-    private final int enemyIndex;
+
+    public int getEnemyIndex() {
+        return enemyIndex;
+    }
+
+    public void setEnemyIndex(int enemyIndex) {
+        this.enemyIndex = enemyIndex;
+    }
+
+    private int enemyIndex;
 
 
     public CardAction(AbstractCard mainCard, int enemyIndex) {

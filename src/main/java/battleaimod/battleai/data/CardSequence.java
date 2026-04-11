@@ -41,6 +41,7 @@ public class CardSequence implements Comparable<CardSequence> {
 
     public CardSequence(CardSequence sequenceToCopy){
         this.cards = new ArrayList<>(sequenceToCopy.getCards());
+        //FileLogger.log("non-mutant cards.size(): " + getCards().size());
         this.leftoverCardOrder = new ArrayList<>(sequenceToCopy.leftoverCardOrder);
         leftoverCardIndex = 0;
 
@@ -203,7 +204,9 @@ public class CardSequence implements Comparable<CardSequence> {
     }
 
 
-    public void mutate() {
+    //NOTE: mutation can produce invalid sequences where energy cost of cards > energy we have
+    //Since this doesn't affect playing the cards, just ignore it to allow for more more variance
+    public void mutate(int numEnemies) {
         Random rand = new Random();
 
         int startingSize = cards.size();
@@ -214,6 +217,7 @@ public class CardSequence implements Comparable<CardSequence> {
         int swapPlayedLeftoverTimes = rand.nextInt(3); // 0-2 times
         int scrambleLeftoversTimes  = rand.nextInt(2); // 0-1 times
         int scrambleGridTimes       = rand.nextInt(2); // 0-1 times
+        int randomTargetTimes       = rand.nextInt(3); // 0-2 times
 
         // Build a list of mutation "jobs"
         List<Runnable> jobs = new ArrayList<>();
@@ -222,6 +226,7 @@ public class CardSequence implements Comparable<CardSequence> {
         for(int i = 0; i < swapPlayedLeftoverTimes; i++) jobs.add(this::swapPlayedAndLeftover);
         for(int i = 0; i < scrambleLeftoversTimes; i++)  jobs.add(this::scrambleLeftovers);
         for(int i = 0; i < scrambleGridTimes; i++)       jobs.add(this::scrambleGridChoices);
+        //for(int i = 0; i < randomTargetTimes; i++)       jobs.add(() -> randomiseTarget(numEnemies));
 
         // Shuffle mutation order to be extra random
         Collections.shuffle(jobs, rand);
@@ -231,6 +236,12 @@ public class CardSequence implements Comparable<CardSequence> {
             job.run();
         }
 
+        // CHECK: did the size of 'cards' change?
+        int endingSize = cards.size();
+        if (endingSize != startingSize) {
+            FileLogger.logError("cards List size mismatch after mutate");
+            throw new RuntimeException("CardAction list size changed during mutation! Before: " + startingSize + ", After: " + endingSize);
+        }
     }
 
     public void scrambleLeftovers(){
@@ -305,5 +316,12 @@ public class CardSequence implements Comparable<CardSequence> {
         // 3. Do the swap: put newAction into cards, put actionCard into leftoverCardOrder
         cards.set(cardActionIdx, newAction);
         leftoverCardOrder.set(cardIdx, actionCard);
+    }
+
+    public void randomiseTarget(int numEnemies){
+        Random rand = new Random();
+        int cardActionIdx = rand.nextInt(cards.size());
+        CardAction selectedAction = cards.get(cardActionIdx);
+        selectedAction.setEnemyIndex(rand.nextInt(numEnemies));
     }
 }
