@@ -4,10 +4,7 @@ package battleaimod.battleai;
 import battleaimod.ValueFunctions;
 import battleaimod.battleai.data.CardAction;
 import battleaimod.battleai.data.CardSequence;
-import battleaimod.battleai.data.dummycommands.DummyCommand;
-import battleaimod.battleai.data.dummycommands.DummyGridSelectCommand;
-import battleaimod.battleai.data.dummycommands.DummyHandSelectCommand;
-import battleaimod.battleai.data.dummycommands.GeneralDummyCommand;
+import battleaimod.battleai.data.dummycommands.*;
 import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
@@ -20,7 +17,6 @@ import savestate.CardState;
 import savestate.SaveState;
 import savestate.SaveStateMod;
 
-import java.io.File;
 import java.util.*;
 
 public class BattleAiController implements Controller {
@@ -65,7 +61,7 @@ public class BattleAiController implements Controller {
     private boolean lastCmdNull = false;
     private boolean lastCmdEnd = false;
     private boolean currSequenceValid = true;
-    //private int cardsPlayed = 0;
+    private int cardsPlayed = 0;
 
     private int currentGeneration = 0;
     private final int GENERATIONS = 10;
@@ -278,6 +274,8 @@ public class BattleAiController implements Controller {
                 lastCmdNull = false;
                 lastCmdEnd = false;
 
+                FileLogger.log("current energy: " + EnergyPanel.totalCount);
+
 
                 if(dummyCommandQueue == null || dummyCommandQueue.isEmpty()){
                     if(dummyCommandQueue != null){ //check if we have any UI to clear
@@ -288,11 +286,13 @@ public class BattleAiController implements Controller {
 
                     if (currentCardSeq != null) { //not null check to skip first loop
                         //eval score, add to final sorting list
-                        FileLogger.log("Finished single sim");
-                        FileLogger.log("last command: " +currentState.lastCommand);
+                        FileLogger.log("==Finished single sim==");
+                        //FileLogger.log("last command: " +currentState.lastCommand);
                         FileLogger.log("size of node list: "+ stateNodesToGetToNode(currentState).size());
 
                         double turnFitness = getFitness(startStateNode, currentState);
+                        FileLogger.log("fitness: "+turnFitness);
+
                         currentCardSeq.setFitness(turnFitness);
                         currentCardSeq.setEndState(currentState);
                         finalSequences.add(currentCardSeq);
@@ -309,7 +309,7 @@ public class BattleAiController implements Controller {
 
                         currentGeneration++;
                         if(currentGeneration == GENERATIONS){
-                            FileLogger.log("Finished all simulations:");
+                            FileLogger.log("====Finished all simulations====");
                             bestEnd = finalSequences.get(0).getEndState();
 
                             //FileLogger.log("size of node list: "+ stateNodesToGetToNode(bestEnd).size());
@@ -335,7 +335,7 @@ public class BattleAiController implements Controller {
                     }
                     else{
                         //init next sequence
-                        FileLogger.log("new sequence init!");
+                        FileLogger.log("==new sequence init==");
                         currentCardSeq = sequences.poll(); //just so we can save it and evolve later
                         dummyCommandQueue = actionsToCommands(currentCardSeq.getCards());
                         //get queue of commands to run
@@ -362,23 +362,39 @@ public class BattleAiController implements Controller {
                     }
                 }
 
-                cmd = dummyCommandQueue.poll().getRealCommand(); //overwrite old command with new one
+                DummyCommand dCmd = dummyCommandQueue.poll();
+                boolean playingCard = dCmd instanceof DummyCardCommand;
+
+                cmd = dCmd.getRealCommand(); //overwrite old command with new one
 
                 if(cmd == null){
                     FileLogger.log("cmd was null, skipping cmd");
                     lastCmdNull = true;
-                    //TODO: if needed, save DummyCard from poll and implement toString()
+                    //TODO: if needed, print DummyCommand and implement toString()
+
+                    if(playingCard){
+
+                        boolean valid = removeCardAction(currentCardSeq, ((DummyCardCommand)dCmd).canRevalidate());
+                        if(!valid){
+                            currSequenceValid = false;
+                            return;
+                        }
+                    }
                 }
                 else{
                     StateNode next = new StateNode(currentState, cmd, this);
                     FileLogger.log("Playing command: " + cmd);
 
                     if(cmd instanceof EndCommand){
-                        FileLogger.log("is end command true!");
                         lastCmdEnd = true;
                     }
                     cmd.execute();
                     currentState = next;
+
+                    if(playingCard){
+                        FileLogger.log("Cards played: " + cardsPlayed);
+                        cardsPlayed++;
+                    }
                 }
             }
         }catch (Exception e){
@@ -530,11 +546,13 @@ public class BattleAiController implements Controller {
         int newDrawPileSize = AbstractDungeon.player.drawPile.size();
 
         if(previousHand == null){
+            FileLogger.log("starting energy: " + EnergyPanel.totalCount);
             previousHand = newHand; //init first previous hand
             FileLogger.log("starting hand: ");
             for(AbstractCard c : previousHand){
                 FileLogger.log("   "+c);
             }
+            currentCardSeq.logCardActions();
             return; //first loop, no point checking anything
         }
 
@@ -687,6 +705,25 @@ public class BattleAiController implements Controller {
         previousHand = null;
 
         currSequenceValid = true;
+        cardsPlayed = 0;
     }
 
+    private boolean removeCardAction(CardSequence currentCardSeq, boolean canValidate){
+        //returns TRUE is sequence is still valid
+        //returns FALSE if letting this stay in population could be bad, therefore invalid
+        FileLogger.log("removing card, full sequence:");
+        currentCardSeq.logCardActions();
+
+        if(cardsPlayed == currentCardSeq.getCards().size()){
+            FileLogger.log("removeCardAction out of bounds, probably discarded/exhausted:");
+            return true;
+        }
+        else if (cardsPlayed > currentCardSeq.getCards().size()){
+            FileLogger.log("removeCardAction out of bounds, maybe could not find card of specified type");
+            return false;
+        }
+        FileLogger.log("removing card: " + currentCardSeq.getCards().get(cardsPlayed).getMainCard());
+        currentCardSeq.removeCard(cardsPlayed, canValidate);
+        return true;
+    }
 }

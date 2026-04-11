@@ -206,7 +206,7 @@ public class CardSequence implements Comparable<CardSequence> {
 
 
     //NOTE: mutation can produce invalid sequences where energy cost of cards > energy we have
-    //Since this doesn't affect playing the cards, just ignore it to allow for more variance
+    //Invalid moves are removed from sequences while simulating
     public void mutate() {
         Random rand = new Random();
 
@@ -342,5 +342,19 @@ public class CardSequence implements Comparable<CardSequence> {
         //get new index
 
         selectedAction.setEnemyIndex((newIndex));
+    }
+
+    public void removeCard(int cardsPlayed, boolean canValidate) {
+        CardAction a = cards.remove(cardsPlayed);
+        if(canValidate){ //was found in hand, just can't play it now, so leftovers!
+            leftoverCardOrder.add(a.getMainCard());
+        }
+    }
+
+    public void logCardActions(){
+        FileLogger.log("CardAction card list from sequence:");
+        for(CardAction a : getCards()){
+            FileLogger.log("   card: " + a.getMainCard());
+        }
     }
 }
