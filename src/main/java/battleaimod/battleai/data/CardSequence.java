@@ -6,6 +6,7 @@ import battleaimod.battleai.data.dummycommands.DummyCommand;
 import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
+import com.megacrit.cardcrawl.monsters.AbstractMonster;
 
 import java.util.*;
 
@@ -205,8 +206,8 @@ public class CardSequence implements Comparable<CardSequence> {
 
 
     //NOTE: mutation can produce invalid sequences where energy cost of cards > energy we have
-    //Since this doesn't affect playing the cards, just ignore it to allow for more more variance
-    public void mutate(int numEnemies) {
+    //Since this doesn't affect playing the cards, just ignore it to allow for more variance
+    public void mutate() {
         Random rand = new Random();
 
         int startingSize = cards.size();
@@ -226,7 +227,7 @@ public class CardSequence implements Comparable<CardSequence> {
         for(int i = 0; i < swapPlayedLeftoverTimes; i++) jobs.add(this::swapPlayedAndLeftover);
         for(int i = 0; i < scrambleLeftoversTimes; i++)  jobs.add(this::scrambleLeftovers);
         for(int i = 0; i < scrambleGridTimes; i++)       jobs.add(this::scrambleGridChoices);
-        //for(int i = 0; i < randomTargetTimes; i++)       jobs.add(() -> randomiseTarget(numEnemies));
+        for(int i = 0; i < randomTargetTimes; i++)       jobs.add(() -> randomiseTarget());
 
         // Shuffle mutation order to be extra random
         Collections.shuffle(jobs, rand);
@@ -318,10 +319,28 @@ public class CardSequence implements Comparable<CardSequence> {
         leftoverCardOrder.set(cardIdx, actionCard);
     }
 
-    public void randomiseTarget(int numEnemies){
+    public void randomiseTarget(){
         Random rand = new Random();
         int cardActionIdx = rand.nextInt(cards.size());
         CardAction selectedAction = cards.get(cardActionIdx);
-        selectedAction.setEnemyIndex(rand.nextInt(numEnemies));
+
+        if(selectedAction.getEnemyIndex() == -1){
+            //can't change the target
+            return;
+        }
+
+        List<AbstractMonster> targets = CardAction.getValidTargets(selectedAction.getMainCard());
+        if(targets.size() <= 1){
+            //no point changing target, one dude
+            return;
+        }
+
+        int newIndex = AbstractDungeon.getMonsters().monsters.indexOf(
+                targets.get(
+                        rand.nextInt(targets.size())
+                ));
+        //get new index
+
+        selectedAction.setEnemyIndex((newIndex));
     }
 }

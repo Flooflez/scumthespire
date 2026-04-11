@@ -70,20 +70,7 @@ public class CardAction {
         if (card.target == AbstractCard.CardTarget.ENEMY ||
                 card.target == AbstractCard.CardTarget.SELF_AND_ENEMY) {
 
-            List<AbstractMonster> validTargets = new ArrayList<>();
-
-            if (AbstractDungeon.getMonsters() != null) {
-                for (int i = 0; i < AbstractDungeon.getMonsters().monsters.size(); i++) {
-                    AbstractMonster m = AbstractDungeon.getMonsters().monsters.get(i);
-
-                    if (m != null &&
-                            !m.isDeadOrEscaped() &&
-                            card.canUse(AbstractDungeon.player, m)) {
-
-                        validTargets.add(m);
-                    }
-                }
-            }
+            List<AbstractMonster> validTargets  = getValidTargets(card);
 
             if (validTargets.isEmpty()) {
                 return null;
@@ -115,5 +102,24 @@ public class CardAction {
     @Override
     public String toString() {
         return mainCard.toString() + " enemy: " + enemyIndex;
+    }
+
+    public static List<AbstractMonster> getValidTargets(AbstractCard card){
+        List<AbstractMonster> validTargets = new ArrayList<>();
+
+        if (AbstractDungeon.getMonsters() != null) {
+            for (int i = 0; i < AbstractDungeon.getMonsters().monsters.size(); i++) {
+                AbstractMonster m = AbstractDungeon.getMonsters().monsters.get(i);
+
+                if (m != null &&
+                        !m.isDeadOrEscaped() &&
+                        card.canUse(AbstractDungeon.player, m)) {
+
+                    validTargets.add(m);
+                }
+            }
+        }
+
+        return validTargets;
     }
 }

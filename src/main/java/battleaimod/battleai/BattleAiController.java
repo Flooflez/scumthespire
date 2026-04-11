@@ -65,7 +65,6 @@ public class BattleAiController implements Controller {
     private boolean lastCmdNull = false;
     private boolean lastCmdEnd = false;
     private boolean currSequenceValid = true;
-    private int numEnemies= 0;
     //private int cardsPlayed = 0;
 
     private int currentGeneration = 0;
@@ -254,7 +253,6 @@ public class BattleAiController implements Controller {
 
                 resetLoopVars();
 
-                FileLogger.log("enemy count: " + numEnemies);
             }
             else{
                 if(!currSequenceValid){
@@ -272,7 +270,6 @@ public class BattleAiController implements Controller {
                 if(!lastCmdNull && !lastCmdEnd){ //don't check new cards drawn if last command failed or was end
                     addNewCardsInHand(currentCardSeq);
                 }
-                numEnemies = ValueFunctions.getAliveMonsterCount(startingState);
 
                 //regardless if we added new cards or not, keep these vars updated
                 List<AbstractCard> newHand = new ArrayList<>(AbstractDungeon.player.hand.group);
@@ -541,8 +538,9 @@ public class BattleAiController implements Controller {
             return; //first loop, no point checking anything
         }
 
-        if (previousHand.size() > newHand.size()) {
+        if (previousHand.size() > newHand.size() || newHand.isEmpty()) {
             // strictly larger before -> no cards were created
+            //OR newHand is empty, no cards created
             return;
         }
         if (previousHand.size() == newHand.size()){
@@ -676,7 +674,7 @@ public class BattleAiController implements Controller {
 
     private CardSequence mutate(CardSequence parent){
         CardSequence child = new CardSequence(parent);
-        child.mutate(numEnemies);
+        child.mutate();
 
         return child;
     }
