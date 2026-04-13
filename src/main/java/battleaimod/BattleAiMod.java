@@ -216,6 +216,8 @@ public class BattleAiMod implements PostInitializeSubscriber, PostUpdateSubscrib
         battleClientControllerMode = BattleClientController.getModeOption();
         BaseMod.addTopPanelItem(new StartAiClientTopPanel());
         BaseMod.registerModBadge(ImageMaster.loadImage("Icon.png"), "Battle Ai Mod", "Board Engineer", "Plays the Battle for yourself", new BattleAiModOptionsPanel());
+
+        new battleaimod.utils.CommandAutomator();
     }
 
     public void receivePostUpdate() {

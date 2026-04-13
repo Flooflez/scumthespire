@@ -1,4 +1,4 @@
-﻿package battleaimod.utils;
+package battleaimod.utils;
 
 import basemod.BaseMod;
 import basemod.interfaces.PostUpdateSubscriber;
@@ -14,14 +14,14 @@ import java.io.IOException;
 public class CommandAutomator implements PostUpdateSubscriber {
 
     // Subscribe to BaseMod so it knows to listen to this class
-    public YourMainModFile() {
+    public CommandAutomator() {
         BaseMod.subscribe(this);
     }
 
     // Check for key press
     @Override
     public void receivePostUpdate() {
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.H)) {
             runCommandsFromFile("commands.txt");
         }
     }
@@ -60,23 +60,23 @@ public class CommandAutomator implements PostUpdateSubscriber {
     }
 
     // Silent execution logic
+    /**
+     * Executes a BaseMod console command silently via code.
+     */
     public static void runSilentCommand(String commandString) {
         if (commandString == null || commandString.trim().isEmpty()) {
             return;
         }
 
+        // Split the command into an array of words, exactly how the DevConsole does
         String[] tokens = commandString.trim().split(" ");
-        String rootCommand = tokens[0].toLowerCase();
 
-        if (ConsoleCommand.commands.containsKey(rootCommand)) {
-            try {
-                ConsoleCommand.commands.get(rootCommand).execute(tokens, 1);
-            } catch (Exception e) {
-                System.out.println("Error executing command silently: " + commandString);
-                e.printStackTrace();
-            }
-        } else {
-            System.out.println("Command not recognized by BaseMod: " + rootCommand);
+        try {
+            // Pass the tokens directly into BaseMod's built-in execution method
+            ConsoleCommand.execute(tokens);
+        } catch (Exception e) {
+            System.out.println("Error executing command silently: " + commandString);
+            e.printStackTrace();
         }
     }
 }
