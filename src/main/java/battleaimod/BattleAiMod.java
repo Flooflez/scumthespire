@@ -25,6 +25,7 @@ import battleaimod.battleai.playorder.IronCladPlayOrder;
 import battleaimod.battleai.playorder.SilentPlayOrder;
 import battleaimod.networking.AiClient;
 import battleaimod.networking.AiServer;
+import battleaimod.networking.AutoPlayController;
 import battleaimod.networking.BattleClientController;
 import battleaimod.networking.BattleClientController.ControllerMode;
 import com.badlogic.gdx.graphics.Texture;
@@ -116,7 +117,7 @@ public class BattleAiMod implements PostInitializeSubscriber, PostUpdateSubscrib
     public BattleAiMod() {
         BaseMod.subscribe(this);
         BaseMod.subscribe(new LudicrousSpeedMod());
-
+        BaseMod.subscribe(new AutoPlayController());
         try {
             optionsConfig = new SpireConfig("BattleAIMod", "options");
         } catch (IOException e) {
