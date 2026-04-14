@@ -29,6 +29,8 @@ public class CardSequence implements Comparable<CardSequence> {
     private double fitness;
     private StateNode endState;
 
+    private boolean shouldPlayExtra = true;
+
     public CardSequence(List<CardAction> cards, List<AbstractCard> leftoverCards) {
         this.cards = new ArrayList<>(cards); // defensive copy
         this.leftoverCardOrder = new ArrayList<>(leftoverCards); //copy for evolution
@@ -121,6 +123,8 @@ public class CardSequence implements Comparable<CardSequence> {
     }
 
     public CardAction getNextPlayableCard(int energy){
+        if(!shouldPlayExtra) return null;
+
         for (int i = leftoverCardOrder.size()-1; i >= 0 ; i--) { //reverse to prevent desyncs
             if(i < leftoverCardIndex){
                 //out of leftovers, no playable cards
@@ -212,19 +216,23 @@ public class CardSequence implements Comparable<CardSequence> {
 
         int startingSize = cards.size();
 
+        if(rand.nextFloat() < 0.1){ //10% chance to flip to not appending more cards
+            shouldPlayExtra = !shouldPlayExtra;
+        }
+
         // Determine how many times to apply each mutation (tweak max values as desired)
+        int removedTimes            = rand.nextInt(3); // 0-2 times
         int swapCardActionsTimes    = rand.nextInt(4); // 0-3 times
         int swapAbstractCardsTimes  = rand.nextInt(4); // 0-3 times
-        int swapPlayedLeftoverTimes = rand.nextInt(3); // 0-2 times
         int scrambleLeftoversTimes  = rand.nextInt(2); // 0-1 times
         int scrambleGridTimes       = rand.nextInt(2); // 0-1 times
         int randomTargetTimes       = rand.nextInt(3); // 0-2 times
 
         // Build a list of mutation "jobs"
         List<Runnable> jobs = new ArrayList<>();
+        for(int i = 0; i < removedTimes; i++) jobs.add(this::removeCardPlayed);
         for(int i = 0; i < swapCardActionsTimes; i++)    jobs.add(this::swapTwoRandomCardActions);
         for(int i = 0; i < swapAbstractCardsTimes; i++)  jobs.add(this::swapTwoRandomAbstractCards);
-        for(int i = 0; i < swapPlayedLeftoverTimes; i++) jobs.add(this::swapPlayedAndLeftover);
         for(int i = 0; i < scrambleLeftoversTimes; i++)  jobs.add(this::scrambleLeftovers);
         for(int i = 0; i < scrambleGridTimes; i++)       jobs.add(this::scrambleGridChoices);
         for(int i = 0; i < randomTargetTimes; i++)       jobs.add(() -> randomiseTarget());
@@ -239,9 +247,9 @@ public class CardSequence implements Comparable<CardSequence> {
 
         // CHECK: did the size of 'cards' change?
         int endingSize = cards.size();
-        if (endingSize != startingSize) {
+        if (endingSize > startingSize) {
             FileLogger.logError("cards List size mismatch after mutate");
-            throw new RuntimeException("CardAction list size changed during mutation! Before: " + startingSize + ", After: " + endingSize);
+            throw new RuntimeException("CardAction list grew size during mutation! Before: " + startingSize + ", After: " + endingSize);
         }
     }
 
@@ -284,8 +292,8 @@ public class CardSequence implements Comparable<CardSequence> {
         leftoverCardOrder.set(idx2, temp);
     }
 
-    public void swapPlayedAndLeftover() {
-        if (cards.isEmpty() || leftoverCardOrder.isEmpty()) return; // Nothing to swap
+    public void removeCardPlayed() {
+        if (cards.isEmpty()) return; // Nothing to swap
 
         Random rand = new Random();
 
@@ -297,29 +305,15 @@ public class CardSequence implements Comparable<CardSequence> {
         }
         AbstractCard actionCard = selectedAction.getMainCard();
 
-        // 2. Pick random AbstractCard from leftovers, retry CardAction.createCardAction as needed
-        CardAction newAction = null;
-        int maxTries = leftoverCardOrder.size(); // Prevent infinite loop
-        int tries = 0, cardIdx = -1;
 
-        while (tries < maxTries) {
-            cardIdx = rand.nextInt(leftoverCardOrder.size());
-            AbstractCard leftoverCard = leftoverCardOrder.get(cardIdx);
-            newAction = CardAction.createCardAction(leftoverCard);
-            if (newAction != null) {
-                break;
-            }
-            tries++;
-        }
-
-        if (newAction == null) return; // Could not find a valid card/action to swap
 
         // 3. Do the swap: put newAction into cards, put actionCard into leftoverCardOrder
-        cards.set(cardActionIdx, newAction);
-        leftoverCardOrder.set(cardIdx, actionCard);
+        cards.remove(cardActionIdx);
+        leftoverCardOrder.add(actionCard);
     }
 
     public void randomiseTarget(){
+        if(cards.isEmpty()) return;
         Random rand = new Random();
         int cardActionIdx = rand.nextInt(cards.size());
         CardAction selectedAction = cards.get(cardActionIdx);
