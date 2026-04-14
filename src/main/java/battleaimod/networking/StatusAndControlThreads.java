@@ -1,5 +1,6 @@
 package battleaimod.networking;
 
+import basemod.BaseMod;
 import battleaimod.BattleAiMod;
 import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpirePostfixPatch;
@@ -11,6 +12,7 @@ import com.megacrit.cardcrawl.characters.AbstractPlayer;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import ludicrousspeed.simulator.patches.ServerStartupPatches;
+import org.apache.logging.log4j.Level;
 import savestate.SaveStateMod;
 import savestate.patches.SavesPatches;
 
@@ -33,6 +35,9 @@ public class StatusAndControlThreads {
                 startServerStatusThread();
             } else {
                 startClientThread();
+                BaseMod.logger.log(Level.INFO, "hello world! haha yeah");
+                System.out.println("hello world! haha yeah!");
+                BattleClientController.startServerThread();
             }
         }
     }
