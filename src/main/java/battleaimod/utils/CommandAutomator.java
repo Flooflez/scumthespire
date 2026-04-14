@@ -1,0 +1,82 @@
+package battleaimod.utils;
+
+import basemod.BaseMod;
+import basemod.interfaces.PostUpdateSubscriber;
+import basemod.devcommands.ConsoleCommand;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+
+public class CommandAutomator implements PostUpdateSubscriber {
+
+    // Subscribe to BaseMod so it knows to listen to this class
+    public CommandAutomator() {
+        BaseMod.subscribe(this);
+    }
+
+    // Check for key press
+    @Override
+    public void receivePostUpdate() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.H)) {
+            runCommandsFromFile("commands.txt");
+        }
+    }
+
+    // File reader logic
+    public static void runCommandsFromFile(String fileName) {
+        File file = new File(fileName);
+
+        if (!file.exists()) {
+            System.out.println("Could not find the command file at: " + file.getAbsolutePath());
+            return;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            System.out.println("--- Starting Batch Commands from " + fileName + " ---");
+
+            while ((line = br.readLine()) != null) {
+                line = line.trim();
+
+                // Skip empty lines and comments
+                if (line.isEmpty() || line.startsWith("#") || line.startsWith("//")) {
+                    continue;
+                }
+
+                System.out.println("Executing: " + line);
+                runSilentCommand(line);
+            }
+
+            System.out.println("--- Finished Batch Commands ---");
+
+        } catch (IOException e) {
+            System.out.println("An error occurred while reading the command file!");
+            e.printStackTrace();
+        }
+    }
+
+    // Silent execution logic
+    /**
+     * Executes a BaseMod console command silently via code.
+     */
+    public static void runSilentCommand(String commandString) {
+        if (commandString == null || commandString.trim().isEmpty()) {
+            return;
+        }
+
+        // Split the command into an array of words, exactly how the DevConsole does
+        String[] tokens = commandString.trim().split(" ");
+
+        try {
+            // Pass the tokens directly into BaseMod's built-in execution method
+            ConsoleCommand.execute(tokens);
+        } catch (Exception e) {
+            System.out.println("Error executing command silently: " + commandString);
+            e.printStackTrace();
+        }
+    }
+}
