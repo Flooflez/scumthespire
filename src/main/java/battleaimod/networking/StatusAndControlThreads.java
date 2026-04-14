@@ -35,8 +35,6 @@ public class StatusAndControlThreads {
                 startServerStatusThread();
             } else {
                 startClientThread();
-                BaseMod.logger.log(Level.INFO, "hello world! haha yeah");
-                System.out.println("hello world! haha yeah!");
                 BattleClientController.startServerThread();
             }
         }

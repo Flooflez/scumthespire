@@ -13,6 +13,8 @@ public class FileLogger {
     private static final Object lock = new Object();
     private static volatile boolean initialized = false;
 
+    private static volatile boolean enabled = false;
+
     // Format for log messages
     private static final DateTimeFormatter logFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -49,6 +51,7 @@ public class FileLogger {
     }
 
     public static void log(String message) {
+        if(!enabled) return;
         init();
         synchronized (lock) {
             writer.println(formatMessage("INFO", message));
@@ -56,6 +59,7 @@ public class FileLogger {
     }
 
     public static void logWarning(String message) {
+        if(!enabled) return;
         init();
         synchronized (lock) {
             writer.println(formatMessage("WARN", message));
@@ -63,6 +67,7 @@ public class FileLogger {
     }
 
     public static void logError(String message) {
+        if(!enabled) return;
         init();
         synchronized (lock) {
             writer.println(formatMessage("ERROR", message));
@@ -88,5 +93,9 @@ public class FileLogger {
     // Optional helper if you want to know the file name being used
     public static String getFileName() {
         return fileName;
+    }
+
+    public static void setEnabled(boolean enabled) {
+        FileLogger.enabled = enabled;
     }
 }

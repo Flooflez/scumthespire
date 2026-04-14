@@ -6,8 +6,6 @@ import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import battleaimod.BattleAiMod;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
 
-import static battleaimod.networking.BattleClientController.startServerThread;
-
 public class AutoPlayController implements PostUpdateSubscriber {
 
     private boolean hasTriggeredThisTurn = false;
