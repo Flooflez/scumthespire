@@ -215,7 +215,7 @@ public class BattleClientController {
                 .getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT;
     }
 
-    private static void startServerThread() {
+    public static void startServerThread() {
         String mtsPath = "";
         try {
             try {

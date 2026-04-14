@@ -75,6 +75,7 @@ import ludicrousspeed.LudicrousSpeedMod;
 import ludicrousspeed.simulator.commands.GridSelectConfrimCommand;
 import ludicrousspeed.simulator.commands.HandSelectCommand;
 import ludicrousspeed.simulator.commands.HandSelectConfirmCommand;
+import org.apache.logging.log4j.Level;
 import savestate.PotionState;
 import savestate.SaveState;
 import savestate.SaveStateMod;
@@ -118,6 +119,9 @@ public class BattleAiMod implements PostInitializeSubscriber, PostUpdateSubscrib
         BaseMod.subscribe(this);
         BaseMod.subscribe(new LudicrousSpeedMod());
         BaseMod.subscribe(new AutoPlayController());
+
+        BaseMod.logger.log(Level.INFO, "BattleAIMod constructor");
+
         try {
             optionsConfig = new SpireConfig("BattleAIMod", "options");
         } catch (IOException e) {
@@ -214,6 +218,8 @@ public class BattleAiMod implements PostInitializeSubscriber, PostUpdateSubscrib
         CardCrawlGame.sound.update();
         clientController = new BattleClientController();
         battleClientControllerMode = BattleClientController.getModeOption();
+
+
         BaseMod.addTopPanelItem(new StartAiClientTopPanel());
         BaseMod.registerModBadge(ImageMaster.loadImage("Icon.png"), "Battle Ai Mod", "Board Engineer", "Plays the Battle for yourself", new BattleAiModOptionsPanel());
 

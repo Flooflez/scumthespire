@@ -10,6 +10,7 @@ public class AutoPlayController implements PostUpdateSubscriber {
 
     private boolean hasTriggeredThisTurn = false;
 
+
     //original is private, not sure if I can make it public, so I create a copy.
     private boolean canSendStateSafe() {
         boolean controllerRunning = BattleAiMod.rerunController != null && !BattleAiMod.rerunController.isDone;

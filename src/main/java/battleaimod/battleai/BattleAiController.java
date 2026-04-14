@@ -1,34 +1,23 @@
 package battleaimod.battleai;
 
 
-import basemod.BaseMod;
 import battleaimod.ValueFunctions;
+import battleaimod.battleai.data.CardAction;
+import battleaimod.battleai.data.CardSequence;
+import battleaimod.battleai.data.dummycommands.*;
 import battleaimod.utils.FileLogger;
-import com.badlogic.gdx.math.MathUtils;
-import com.megacrit.cardcrawl.actions.GameActionManager;
 import com.megacrit.cardcrawl.cards.AbstractCard;
+import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
-import com.megacrit.cardcrawl.helpers.CardLibrary;
-import com.megacrit.cardcrawl.monsters.AbstractMonster;
-import com.megacrit.cardcrawl.relics.AbstractRelic;
+import com.megacrit.cardcrawl.rooms.AbstractRoom;
 import com.megacrit.cardcrawl.ui.panels.EnergyPanel;
 import ludicrousspeed.Controller;
-import ludicrousspeed.LudicrousSpeedMod;
-import ludicrousspeed.simulator.ActionSimulator;
-import ludicrousspeed.simulator.commands.CardCommand;
-import ludicrousspeed.simulator.commands.Command;
-import ludicrousspeed.simulator.commands.EndCommand;
+import ludicrousspeed.simulator.commands.*;
 import savestate.CardState;
-import savestate.PlayerState;
 import savestate.SaveState;
 import savestate.SaveStateMod;
 
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.*;
-import java.util.stream.Collectors;
-
-import static savestate.SaveStateMod.addRuntime;
 
 public class BattleAiController implements Controller {
     private final int maxTurnLoads;
@@ -56,28 +45,35 @@ public class BattleAiController implements Controller {
     public int startingHealth;
     public boolean isDone = false;
     public final SaveState startingState;
+    public int expectedDamage = 0;
     private boolean initialized;
 
     //evolution stuff
-    private Queue<Command> sequence;
-    private StateNode current;
+    private Queue<CardSequence> sequences;
+    private Deque<DummyCommand> dummyCommandQueue;
+    private CardSequence currentCardSeq;
+    private List<CardSequence> finalSequences;
+    private StateNode currentState;
     private StateNode startStateNode;
+    private List<AbstractCard> startingHand;
+    private List<AbstractCard> previousHand;
+    private int previousDrawPileSize;
+    private boolean lastCmdNull = false;
+    private boolean lastCmdEnd = false;
+    private boolean currSequenceValid = true;
+    private int cardsPlayed = 0;
+
+    private int currentGeneration = 0;
+    private final int GENERATIONS = 10;
+    private final int POPULATIONSIZE = 100;
+    private final int MUTATIONSIZE = 85;
+    private final int PARENTSIZE = 25;
+    private final int ELITENUM = 5;
 
     // EXPERIMENTAL
-    private TurnNode startNode = null;
     public static final boolean SHOULD_SHOW_TREE = false;
 
-    // The turn we're currently processing, if this is null then a turn will be polled from the
-    // pqueue.
-    public TurnNode curTurn;
 
-    // The count of turns restricted by a turn limit.
-    public int turnsLoaded = 0;
-
-    private long startTime = 0;
-    public int expectedDamage = 0;
-
-    private final boolean usingOldStep = true;
 
     public BattleAiController(SaveState state, int maxTurnLoads) {
         SaveStateMod.runTimes = new HashMap<>();
@@ -93,175 +89,328 @@ public class BattleAiController implements Controller {
 
         this.maxTurnLoads = maxTurnLoads;
     }
+    private Queue<CardSequence> generateInitPop(int populationSize) {
+        Queue<CardSequence> population = new ArrayDeque<>();
 
-    private List<Command> generateLeftToRight() {
-        List<Command> commands = new ArrayList<>();
+        if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null) {
+            return population;
+        }
 
-        AbstractDungeon.player.hand.refreshHandLayout();
-        //some state syncing stuff copied from original code
+        startingHand = new ArrayList<>(AbstractDungeon.player.hand.group);
 
-        int energy = EnergyPanel.totalCount; //get starting player energy
+        FileLogger.log("starting hand: ");
+        for (AbstractCard c : AbstractDungeon.player.hand.group){
+            FileLogger.log("   card id: " + c.getMetricID());
+        }
 
-        for(int i = 0; i < AbstractDungeon.player.hand.group.size(); i++){
-            AbstractCard card = AbstractDungeon.player.hand.group.get(i);
-            int cost = card.costForTurn;//iterate over all cards in hand
+        for (int p = 0; p < populationSize; p++) {
 
-                if (cost == -2) { //unplayable card
-                    FileLogger.log("Skipping unplayable card: " + card.name);
-                    break;
+            List<CardAction> cardActionList = new ArrayList<>();
+            Set<AbstractCard> usedCards = new HashSet<>();
+
+            AbstractDungeon.player.hand.refreshHandLayout();
+            int energy = EnergyPanel.totalCount;
+
+            // Copy + shuffle hand
+            List<AbstractCard> cards = new ArrayList<>(AbstractDungeon.player.hand.group);
+            Collections.shuffle(cards);
+
+            for (AbstractCard card : cards) {
+
+                if (card == null) continue;
+
+                int cost = card.costForTurn;
+
+
+                // Skip unplayable
+                if (cost == -2) {
+                    continue;
                 }
 
-                if (cost == -1) { //x-cost card
-                    FileLogger.log("Choosing card: " + card.name);
-                    commands.add(createCommandForCard(card, 0));
-                    //we do 0 index because it is dynamic, e.g. after card at 0 is played, the cards shift so card at 1 is now also at 0.
-                    break; //consumes all energy -> stop
+                if(AbstractDungeon.player.hasPower("Entangled") && card.type == AbstractCard.CardType.ATTACK){
+                    //entangled edge case, makes attacks unplayable -> skip
+                    continue;
+                }
+
+                // X-cost card
+                if (cost == -1) {
+                    CardAction action = CardAction.createCardAction(card);
+                    if (action != null) {
+                        cardActionList.add(action);
+                        usedCards.add(card);
+                    }
+                    break; // consumes all energy
                 }
 
                 // Normal cost
                 if (cost <= energy) {
-                    FileLogger.log("Choosing card: " + card.name);
-                    commands.add(createCommandForCard(card, 0));
-                    energy -= cost;
-                } else {
-                    break; //can't afford -> stop
+                    CardAction action = CardAction.createCardAction(card);
+                    if (action != null) {
+                        cardActionList.add(action);
+                        usedCards.add(card);
+                        energy -= cost;
+                    }
                 }
 
-                if (energy == 0) {
+                if (energy <= 0) {
                     break;
                 }
-
             }
 
-            FileLogger.log("Total cards: "+commands.size());
-
-
-            commands.add(new EndCommand());
-
-
-            return commands;
-        }
-
-
-
-
-
-    private Command createCommandForCard(AbstractCard card, int cardIndex) {
-        if (card.target == AbstractCard.CardTarget.ENEMY ||
-                card.target == AbstractCard.CardTarget.SELF_AND_ENEMY) { //if card can target enemies
-
-            for (int j = 0; j < AbstractDungeon.getMonsters().monsters.size(); j++) {
-                AbstractMonster monster = AbstractDungeon.getMonsters().monsters.get(j);
-
-                if (!monster.isDeadOrEscaped() &&
-                        card.canUse(AbstractDungeon.player, monster)) {
-
-                    return new CardCommand(cardIndex, j, card.cardID + " "+ card.name);
+            // --- Compute leftover cards ---
+            List<AbstractCard> leftoverCards = new ArrayList<>();
+            for (AbstractCard card : cards) {
+                if (card != null && !usedCards.contains(card)) {
+                    leftoverCards.add(card);
                 }
             }
 
-            return null; // no valid target
+            CardSequence sequence = new CardSequence(cardActionList, leftoverCards);
+            population.add(sequence);
         }
 
-        if (card.target == AbstractCard.CardTarget.ALL_ENEMY ||
-                card.target == AbstractCard.CardTarget.ALL ||
-                card.target == AbstractCard.CardTarget.SELF ||
-                card.target == AbstractCard.CardTarget.NONE) { //otherwise, just play with no target
-
-            if (card.canUse(AbstractDungeon.player, null)) {
-                return new CardCommand(cardIndex, card.cardID+" "+ card.name);
-            }
-        }
-
-        return null;
+        return population;
     }
 
 
-    private void printMetrics(StateNode start, StateNode end) {
-        //need to make this log to file since console is not visible/freezes
+
+
+    private void printMetrics(StateNode start, StateNode end, CardSequence finalSequence) {
+        //log to file since console is not visible/freezes
         FileLogger.log("SIMULATION RESULTS:");
         FileLogger.log("Player HP: " + end.saveState.getPlayerHealth());
         FileLogger.log("Damage taken: " + StateNode.getPlayerDamage(end));
         FileLogger.log("Damage Dealt: " + ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState));
         FileLogger.log("Monster HP: " + ValueFunctions.getTotalMonsterHealth(end.saveState));
-        FileLogger.log("Score: " + ValueFunctions.getStateScore(end));
+        FileLogger.log("Score: " + getFitness(start, end));
+        FileLogger.log("Final Cards: ");
+        for(CardAction a : finalSequence.getCards()){
+            FileLogger.log("   "+a.getMainCard().toString());
+        }
+        FileLogger.log("Starting Hand: ");
+        for(AbstractCard c : startingHand){
+            FileLogger.log("   "+c);
+        }
         FileLogger.log("==========================");
+    }
+
+    private double getFitness(StateNode start, StateNode end) {
+        double damageTaken = StateNode.getPlayerDamage(end);
+        double damageDealt = ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState);
+        double remainingHP = ValueFunctions.getTotalMonsterHealth(end.saveState);
+        int remainingMonsters = ValueFunctions.getAliveMonsterCount(end.saveState);
+
+        double fitness = (damageDealt * 2.0)
+                - (damageTaken * 5.0)
+                - (remainingHP * 1.0)
+                - (remainingMonsters * 10.0);
+
+        return fitness;
+    }
+
+    private Deque<DummyCommand> actionsToCommands(List<CardAction> cardActionList){
+        Deque<DummyCommand> commands = new ArrayDeque<>();
+        for(CardAction action: cardActionList){
+            commands.addAll(action.getDummyCommands());
+        }
+        commands.add(new GeneralDummyCommand(new EndCommand()));
+        return commands;
     }
 
 
     public void step() {
-        if (isDone) {
-            return;
-        }
-
-        if (!initialized) {
-            initialized = true;
-            isDone = false;
-            bestEnd = null;
-
-            // Match A* init
-            SaveStateMod.runTimes = new HashMap<>();
-            CardState.resetFreeCards();
-
-            // 1. Load starting state
-            SaveState startState = new SaveState();
-            startState.loadState();
-
-            startStateNode = new StateNode(null, null, this);
-            startStateNode.saveState = startingState;
-            current = startStateNode;
-            //FileLogger.log("turns: " + GameActionManager.turn + " vs " + current.saveState.turn);
-
-            startingHealth = startState.getPlayerHealth();
-
-            // 2. Generate sequence
-            sequence = new ArrayDeque<>(generateLeftToRight());;
-
-
-        }
-        else{
-            if(current.saveState == null){
-                //IMPORTANT: SaveState MUST come in the next step after running a command to ensure effects propagate!
-                current.saveState = new SaveState();
+        try{
+            if (isDone) {
+                return;
             }
-            if(!sequence.isEmpty()){
-                Command cmd = sequence.poll();
-                StateNode next = new StateNode(current, cmd, this);
-                cmd.execute();
-                current = next;
+
+            if (!initialized) {
+                initialized = true;
+                isDone = false;
+                bestEnd = null;
+                //shouldRunEndCommand = false;
+                finalSequences = new ArrayList<>();
+
+                // Match A* init
+                SaveStateMod.runTimes = new HashMap<>();
+                CardState.resetFreeCards();
+
+                // 1. Load starting state
+                SaveState startState = new SaveState();
+                startState.loadState();
+
+                startStateNode = new StateNode(null, null, this);
+                startStateNode.saveState = startingState;
+                currentState = startStateNode;
+
+                startingHealth = startState.getPlayerHealth();
+
+                sequences = generateInitPop(POPULATIONSIZE);
+
+                resetLoopVars();
+
             }
             else{
+                if(!currSequenceValid){
+                    //kill this sim and discard it
+                    FileLogger.logError("Invalid sequence detected, discarding sim...");
+                    dummyCommandQueue = null;
+                    currentCardSeq = null;
+                }
 
-                bestEnd = current;
-                printMetrics(startStateNode, bestEnd);
-                isDone = true;
-                initialized = false;
+                if(currentState.saveState == null){
+                    //IMPORTANT: SaveState MUST come in the next step after running a command to ensure effects propagate!
+                    currentState.saveState = new SaveState();
+                }
+
+                if(!lastCmdNull && !lastCmdEnd){ //don't check new cards drawn if last command failed or was end
+                    addNewCardsInHand(currentCardSeq);
+                }
+
+                //regardless if we added new cards or not, keep these vars updated
+                List<AbstractCard> newHand = new ArrayList<>(AbstractDungeon.player.hand.group);
+                previousHand = newHand;
+                previousDrawPileSize = AbstractDungeon.player.drawPile.size();
+                lastCmdNull = false;
+                lastCmdEnd = false;
+
+                FileLogger.log("current energy: " + EnergyPanel.totalCount);
+
+
+                if(dummyCommandQueue == null || dummyCommandQueue.isEmpty()){
+                    if(dummyCommandQueue != null){ //check if we have any UI to clear
+                        if(checkUICommands(dummyCommandQueue, currentCardSeq)){
+                            return; //keep looping
+                        }
+                    }
+
+                    if (currentCardSeq != null) { //not null check to skip first loop
+                        //eval score, add to final sorting list
+                        FileLogger.log("==Finished single sim==");
+                        //FileLogger.log("last command: " +currentState.lastCommand);
+                        FileLogger.log("size of node list: "+ stateNodesToGetToNode(currentState).size());
+
+                        double turnFitness = getFitness(startStateNode, currentState);
+                        FileLogger.log("fitness: "+turnFitness);
+
+                        currentCardSeq.setFitness(turnFitness);
+                        currentCardSeq.setEndState(currentState);
+                        finalSequences.add(currentCardSeq);
+                    }
+
+
+                    if(sequences.isEmpty()){
+                        //finished simulating all
+
+                        //sort, get best end
+                        Collections.sort(finalSequences);
+
+                        FileLogger.log("FINISHED GEN "+currentGeneration +" SIMULATIONS");
+
+                        currentGeneration++;
+                        if(currentGeneration == GENERATIONS){
+                            FileLogger.log("====Finished all simulations====");
+                            bestEnd = finalSequences.get(0).getEndState();
+
+                            //FileLogger.log("size of node list: "+ stateNodesToGetToNode(bestEnd).size());
+
+                            printMetrics(startStateNode, bestEnd, finalSequences.get(0));
+                            isDone = true;
+                            initialized = false;
+                        }
+                        else{
+                            //restart with new population
+
+                            currentState = startStateNode;
+                            startStateNode.saveState.loadState();
+
+                            List<CardSequence> parents = selectParents(finalSequences);
+                            sequences = nextGeneration(parents);
+                            finalSequences = new ArrayList<>();
+                            currentCardSeq = null;
+
+                            resetLoopVars();
+
+                        }
+                    }
+                    else{
+                        //init next sequence
+                        FileLogger.log("==new sequence init==");
+                        currentCardSeq = sequences.poll(); //just so we can save it and evolve later
+                        dummyCommandQueue = actionsToCommands(currentCardSeq.getCards());
+                        //get queue of commands to run
+
+                        resetLoopVars();
+
+                        currentState = startStateNode;
+                        startStateNode.saveState.loadState(); //reset sim to start
+                    }
+                    return; //return here to ensure states properly loaded
+
+                }
+
+                //This code will run if dummyCommandQueue has commands to run still:
+                Command cmd = dummyCommandQueue.peek().getRealCommand();
+
+                if (cmd instanceof CardCommand || cmd instanceof EndCommand){
+                    //FileLogger.log("checking for UI command");
+                    checkUICommands(dummyCommandQueue, currentCardSeq); //check if there is a UI menu: this func will add commands if needed
+                    //FileLogger.log("done checking for UI command");
+
+                    if(cmd instanceof EndCommand){
+                        checkExtraEnergy(dummyCommandQueue, currentCardSeq);
+                    }
+                }
+
+                DummyCommand dCmd = dummyCommandQueue.poll();
+                boolean playingCard = dCmd instanceof DummyCardCommand;
+
+                cmd = dCmd.getRealCommand(); //overwrite old command with new one
+
+                if(cmd == null){
+                    FileLogger.log("cmd was null, skipping cmd");
+                    lastCmdNull = true;
+                    //TODO: if needed, print DummyCommand and implement toString()
+
+                    if(playingCard){
+
+                        boolean valid = removeCardAction(currentCardSeq, ((DummyCardCommand)dCmd).canRevalidate());
+                        if(!valid){
+                            currSequenceValid = false;
+                            return;
+                        }
+                    }
+                }
+                else{
+                    StateNode next = new StateNode(currentState, cmd, this);
+                    FileLogger.log("Playing command: " + cmd);
+
+                    if(cmd instanceof EndCommand){
+                        lastCmdEnd = true;
+                    }
+                    cmd.execute();
+                    currentState = next;
+
+                    if(playingCard){
+                        FileLogger.log("Cards played: " + cardsPlayed);
+                        cardsPlayed++;
+                    }
+                }
             }
+        }catch (Exception e){
+            FileLogger.logError("error");
+            FileLogger.logError("message: " + e.getMessage());
+            FileLogger.logError("cause: " + e.getCause());
+            FileLogger.logError("stack trace: " + Arrays.toString(e.getStackTrace()));
 
-        }
-    }
-
-
-    private boolean isNewTurn(StateNode turnState) {
-        return (GameActionManager.turn > turnState.saveState.turn);
-    }
-
-    private static TurnNode makeResetCopy(TurnNode node) {
-        StateNode stateNode = new StateNode(node.startingState.parent, node.startingState.lastCommand, node.controller);
-        stateNode.saveState = node.startingState.saveState;
-        return new TurnNode(stateNode, node.controller, node.parent);
-    }
-
-    public static List<Command> commandsToGetToNode(StateNode endNode) {
-        ArrayList<Command> commands = new ArrayList<>();
-        StateNode iterator = endNode;
-        while (iterator != null) {
-            commands.add(0, iterator.lastCommand);
-            iterator = iterator.parent;
+            isDone = true;
+            bestEnd = null;
+            //throw new RuntimeException(e);
         }
 
-        return commands;
+
     }
+
 
     public static List<StateNode> stateNodesToGetToNode(StateNode endNode) {
         ArrayList<StateNode> result = new ArrayList<>();
@@ -274,16 +423,6 @@ public class BattleAiController implements Controller {
         return result;
     }
 
-    public void printRuntimeStats() {
-        System.err.println("-------------------------------------------------------------------");
-        System.err.println("total time: " + (System.currentTimeMillis() - startTime));
-        System.err.println(SaveStateMod.runTimes.entrySet()
-                                                .stream()
-                                                .map(entry -> entry.toString())
-                                                .sorted()
-                                                .collect(Collectors.joining("\n")));
-        System.err.println("-------------------------------------------------------------------");
-    }
 
     public boolean isDone() {
         return isDone;
@@ -294,216 +433,297 @@ public class BattleAiController implements Controller {
     }
 
     public int turnsLoaded() {
-        return turnsLoaded;
+        return 0;
     }
 
     public int maxTurnLoads() {
         return maxTurnLoads;
     }
 
-    private void showTree() throws IOException {
-        try {
-            FileWriter writer = new FileWriter("out.dot");
 
-            writer.write("digraph battleTurns {\n");
-            TurnNode start = startNode;
-            LinkedList<TurnNode> bfs = new LinkedList<>();
-            bfs.add(start);
-            while (!bfs.isEmpty()) {
-                TurnNode node = bfs.pollFirst();
+    private boolean checkUICommands(Deque<DummyCommand> dummyCommandQueue, CardSequence cardSequence){
 
-                int playerDamage = ValueFunctions.getPlayerDamage(node);
-                int monsterHealth = TurnNode.getTotalMonsterHealth(node);
-
-                String nodeLabel = String
-                        .format("player damage:%d monster health:%d", playerDamage, monsterHealth);
-
-
-                double f = (double) node.turnLabel / 100.;
-
-                int r = 0;
-                int g = 0;
-                int b = 0;
-                double a = (1 - f) / 0.25;    //invert and group
-                int X = (int) Math.floor(a);    //this is the integer part
-                int Y = (int) Math.floor(255 * (a - X)); //fractional part from 0 to 255
-                switch (X) {
-                    case 0:
-                        r = 255;
-                        g = Y;
-                        b = 0;
-                        break;
-                    case 1:
-                        r = 255 - Y;
-                        g = 255;
-                        b = 0;
-                        break;
-                    case 2:
-                        r = 0;
-                        g = 255;
-                        b = Y;
-                        break;
-                    case 3:
-                        r = 0;
-                        g = 255 - Y;
-                        b = 255;
-                        break;
-                    case 4:
-                        r = 0;
-                        g = 0;
-                        b = 255;
-                        break;
-                }
-
-                writer.write(String
-                        .format("%s [label=\"%s\" color=\"#%02X%02X%02X\" style=\"filled\"]\n", node.turnLabel, nodeLabel, r, g, b));
-                node.children.forEach(child -> {
-                    try {
-                        ArrayList<Command> commands = new ArrayList<>();
-                        StateNode iterator = child.startingState;
-                        while (iterator != node.startingState) {
-                            commands.add(0, iterator.lastCommand);
-                            iterator = iterator.parent;
-                        }
-                        writer.write(String
-                                .format("%s->%s [label=\"%s\"]\n", node.turnLabel, child.turnLabel, commands));
-                    } catch (IOException e) {
-                        System.err.println("writing failed");
-                        e.printStackTrace();
-                    }
-                    bfs.add(child);
-                });
+        //FileLogger.log("checking UI commands");
+        if (isInHandSelect()) {
+            //FileLogger.log("getting card");
+            AbstractCard card = cardSequence.getNextHandSelectCard();
+            //FileLogger.log("finished get");
+            if(card != null){
+                //FileLogger.log("putting commands in");
+                dummyCommandQueue.offerFirst(new GeneralDummyCommand(HandSelectConfirmCommand.INSTANCE));
+                dummyCommandQueue.offerFirst(new DummyHandSelectCommand(card));
             }
+            else{
+                FileLogger.logError("Ran out of all cards to select!");
+                currSequenceValid = false;
 
-            writer.write("}\n");
-            writer.close();
+            }
+            return true;
+        }
 
-        } catch (IOException e) {
-            System.err.println("file writing failed");
-            e.printStackTrace();
+        if (isInGridSelect()) {
+            //includes Scry, Seek, Headbutt etc.
+
+            dummyCommandQueue.offerFirst(new GeneralDummyCommand(GridSelectConfrimCommand.INSTANCE));
+            //this one is harder since we don't know the set of cards we are going to see,
+            //and we don't know where the card is going (discard, draw pile, hand)
+
+            if (cardSequence.hasGridSelectChoices()){
+                //try to use the saved choice
+                AbstractCard selectedCard = cardSequence.getNextGridSelectChoice();
+                dummyCommandQueue.offerFirst(new DummyGridSelectCommand(selectedCard));
+
+                //TODO: if choice does not exist, need to remove from buffer and handle it
+            }
+            else{
+                //random
+                List<AbstractCard> group = AbstractDungeon.gridSelectScreen.targetGroup.group;
+                int randIndex = new Random().nextInt(group.size());
+                AbstractCard randomCard = group.get(randIndex);
+
+                dummyCommandQueue.offerFirst(new DummyGridSelectCommand(randomCard));
+                cardSequence.addGridSelectChoiceToBuffer(randomCard); //setup for next time
+            }
+            return true;
+        }
+
+        if (isInCardRewardSelect()) { //literally just for Discover, just pick 0 every time, change later if needed
+            dummyCommandQueue.offerFirst(new GeneralDummyCommand(new CardRewardSelectCommand(0)));
+//            for(int i = 0; i < AbstractDungeon.cardRewardScreen.rewardGroup.size(); ++i) {
+//
+//            }
+            return true;
+        }
+        return false;
+
+    }
+
+    private void checkExtraEnergy(Deque<DummyCommand> dummyCommandQueue, CardSequence cardSequence){
+        CardAction a = cardSequence.getNextPlayableCard(EnergyPanel.totalCount);
+        if(a == null){
+            return; //no cards, stop here
+        }
+
+        FileLogger.log("has playable cards! energy = " + EnergyPanel.totalCount);
+        FileLogger.log("extra card: " + a.getMainCard());
+
+        List<DummyCommand> cmds = a.getDummyCommands();
+        Collections.reverse(cmds);
+
+        for(DummyCommand cmd : cmds) {
+            dummyCommandQueue.offerFirst(cmd);
         }
     }
 
-    public void oldStep() {
-        if (isDone) {
+    private static boolean isInGridSelect() {
+        //FileLogger.log("checking grid select menu open");
+        return isInDungeon() && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT && AbstractDungeon.isScreenUp && AbstractDungeon.screen == AbstractDungeon.CurrentScreen.GRID;
+    }
+
+
+    private static boolean isInHandSelect() {
+        //FileLogger.log("checking hand select menu open");
+        return isInDungeon() && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT && AbstractDungeon.isScreenUp && AbstractDungeon.screen == AbstractDungeon.CurrentScreen.HAND_SELECT;
+    }
+
+    private static boolean isInCardRewardSelect() {
+        //FileLogger.log("checking card reward menu open");
+        return isInDungeon() && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT && AbstractDungeon.isScreenUp && AbstractDungeon.screen == AbstractDungeon.CurrentScreen.CARD_REWARD;
+    }
+
+    private static boolean isInDungeon() {
+        return CardCrawlGame.mode == CardCrawlGame.GameMode.GAMEPLAY && AbstractDungeon.isPlayerInDungeon() && AbstractDungeon.currMapNode != null;
+    }
+
+    private void addNewCardsInHand(CardSequence currentCardSeq) {
+        if(currentCardSeq == null){
+            FileLogger.logError("currentCardSeq null in addNewCardsInHand, skipping");
             return;
         }
-        FileLogger.log("oldStep called not done");
-        if (!initialized) {
-            FileLogger.log("oldStep init");
-            TurnNode.nodeIndex = 0;
-            startTime = System.currentTimeMillis();
-            initialized = true;
-            isDone = false;
-            StateNode firstStateContainer = new StateNode(null, null, this);
-            startingHealth = startingState.getPlayerHealth();
-            firstStateContainer.saveState = startingState;
-            turns = new PriorityQueue<>();
-            startNode = new TurnNode(firstStateContainer, this, null);
-            turns.add(startNode);
 
-            SaveStateMod.runTimes = new HashMap<>();
-            CardState.resetFreeCards();
+        List<AbstractCard> newHand = new ArrayList<>(AbstractDungeon.player.hand.group);
+
+        int newDrawPileSize = AbstractDungeon.player.drawPile.size();
+
+        if(previousHand == null){
+            FileLogger.log("starting energy: " + EnergyPanel.totalCount);
+            previousHand = newHand; //init first previous hand
+            FileLogger.log("starting hand: ");
+            for(AbstractCard c : previousHand){
+                FileLogger.log("   "+c);
+            }
+            currentCardSeq.logCardActions();
+            return; //first loop, no point checking anything
         }
 
-        if (curTurn == null || curTurn.isDone) {
-            FileLogger.log(curTurn == null ? "is null" : "curTurn.isDone");
-            if (turns.isEmpty() || turnsLoaded >= maxTurnLoads) {
-                if (bestEnd != null) {
-                    System.err.println("Found end at turn threshold, going into rerun");
-                    printRuntimeStats();
+        if (previousHand.size() > newHand.size() || newHand.isEmpty()) {
+            // strictly larger before -> no cards were created
+            //OR newHand is empty, no cards created
+            return;
+        }
+        if (previousHand.size() == newHand.size()){
+            if(newDrawPileSize == previousDrawPileSize){ //check if we actually drew anything
+                //there's a chance we generated 1 card, so check if its equal
+                AbstractCard potentialNewCard = newHand.get(newHand.size()-1);
+                AbstractCard oldCard = previousHand.get(previousHand.size()-1);
 
-                    isDone = true;
-                    return;
-                } else if (bestTurn != null || backupTurn != null) {
-                    if (bestTurn == null) {
-                        System.err.println("Loading for backup " + backupTurn);
-                        bestTurn = backupTurn;
-                    }
-                    System.err.println("Loading for turn load threshold, best turn: " + bestTurn);
-                    turnsLoaded = 0;
-                    turns.clear();
-
-                    int backStep = targetTurnJump / 2;
-
-                    TurnNode backStepTurn = bestTurn;
-                    for (int i = 0; i < backStep; i++) {
-                        if (backStepTurn == null) {
-                            break;
-                        }
-
-                        backStepTurn = backStepTurn.parent;
-                    }
-
-                    if (backStepTurn != null && (committedTurn == null || backStepTurn.startingState.saveState.turn > committedTurn.startingState.saveState.turn)) {
-                        bestTurn = backStepTurn;
-                    }
-
-                    System.err.println("Backstepping to turn: " + bestTurn);
-
-                    TurnNode toAdd = makeResetCopy(bestTurn);
-                    turns.add(toAdd);
-                    targetTurn = bestTurn.startingState.saveState.turn + targetTurnJump;
-                    toAdd.startingState.saveState.loadState();
-                    committedTurn = toAdd;
-                    bestTurn = null;
-                    backupTurn = null;
-                    deathNode = null;
-
-                    // TODO this is here to prevent playback errors
-                    bestEnd = null;
-
-                    return;
-                } else if (turns.isEmpty() || turnsLoaded >= maxTurnLoads * 10) {
-                    if (deathNode != null) {
-                        System.err.println("Sending back death turn");
-                        bestEnd = deathNode;
-                        isDone = true;
-                        return;
-                    }
+                if(potentialNewCard.name.equals(oldCard.name)){
+                    //just check name since card generating itself is impossible
+                    return; //nothing was drawn
                 }
             }
         }
 
 
-        while (!turns.isEmpty() && (curTurn == null || curTurn.isDone)) {
-            curTurn = turns.peek();
-            FileLogger.log("new turn: " + curTurn.startingState.saveState.turn);
-            //printMetrics(startNode.startingState, curTurn.startingState);
-            FileLogger.log("Damage taken: " + StateNode.getPlayerDamage(curTurn.startingState));
 
-            int turnNumber = curTurn.startingState.saveState.turn;
+        FileLogger.log("new cards detected from new hand: ");
+        for(AbstractCard c : newHand){
+            FileLogger.log("   "+c);
+        }
+        FileLogger.log("old hand: ");
+        for(AbstractCard c : previousHand){
+            FileLogger.log("   "+c);
+        }
 
-            if (turnNumber >= targetTurn) {
-                if (bestTurn == null || curTurn.isBetterThan(bestTurn)) {
-                    bestTurn = curTurn;
-                }
+        if(previousHand.isEmpty()){
+            //then all the cards in newHand are new
+            FileLogger.log("old hand is empty, adding all newHand cards");
+            currentCardSeq.addCardsCreated(newHand);
+            return;
+        }
 
-                addRuntime("turnsLoaded", 1);
-                curTurn = null;
-                ++turnsLoaded;
-                turns.poll();
-            } else {
-                if (curTurn.isDone) {
-                    turns.poll();
+        List<AbstractCard> createdCards = new ArrayList<>();
+        for (int i = previousHand.size()-1; i < newHand.size(); i++) {
+            FileLogger.log("new card: " + newHand.get(i));
+            createdCards.add(newHand.get(i));
+        }
+
+        currentCardSeq.addCardsCreated(createdCards);
+    }
+
+    private List<CardSequence> selectParents(List<CardSequence> sortedSequences) {
+        List<CardSequence> selected = new ArrayList<>();
+        int n = sortedSequences.size();
+        Random rand = new Random();
+
+        // top 3 elites
+        int eliteCount = Math.min(ELITENUM, n);
+        for (int i = 0; i < eliteCount; i++) {
+            selected.add(sortedSequences.get(i));
+        }
+
+        // If we already filled parent pool, return early
+        if (selected.size() >= PARENTSIZE) {
+            return selected.subList(0, PARENTSIZE);
+        }
+
+        // Build weights
+        double[] weights = new double[n];
+        double totalWeight = 0;
+
+        for (int i = 0; i < n; i++) {
+            weights[i] = n - i; // linear bias
+            totalWeight += weights[i];
+        }
+
+        // Fill remaining slots using weighted sampling
+        int remaining = PARENTSIZE - selected.size();
+
+        for (int p = 0; p < remaining; p++) {
+            double r = rand.nextDouble() * totalWeight;
+
+            double cumulative = 0;
+            for (int i = 0; i < n; i++) {
+                cumulative += weights[i];
+                if (r <= cumulative) {
+                    selected.add(sortedSequences.get(i));
+                    break;
                 }
             }
         }
 
-        if (curTurn != null) {
-            long startTurnStep = System.currentTimeMillis();
+        return selected;
+    }
 
-//            System.err.println("Stepping Turn " + curTurn.turnLabel);
-            PlayerState playerState = new PlayerState(AbstractDungeon.player);
-            FileLogger.log("OLD STEP: player health before turn step: " + playerState.getCurrentHealth());
-            boolean reachedNewTurn = curTurn.step();
-            playerState = new PlayerState(AbstractDungeon.player);
-            FileLogger.log("OLD STEP: player health AFTER turn step: " + playerState.getCurrentHealth());
-            if (reachedNewTurn) {
-                curTurn = null;
-            }
+    private Queue<CardSequence> nextGeneration(List<CardSequence> parents) {
+        int parentSize = parents.size();
+        Queue<CardSequence> nextGen = new ArrayDeque<>(parentSize);
+        Random rand = new Random();
 
-            addRuntime("Battle AI TurnNode Step", System.currentTimeMillis() - startTurnStep);
+        // 1. Elitism: keep top N unchanged
+        for (int i = 0; i < ELITENUM; i++) {
+            nextGen.add(new CardSequence(parents.get(i)));
         }
+
+//        // 2. Crossover + mutation-after-crossover
+//        for (int i = 0; i < crossoverNum; i++) {
+//            CardSequence parent1 = parents.get(rand.nextInt(parentSize));
+//            CardSequence parent2 = parents.get(rand.nextInt(parentSize));
+//            CardSequence child = crossover(parent1, parent2);
+//
+//            // Mutation-after-crossover (common GA practice)
+//            if (rand.nextDouble() < mutationRate) {
+//                child = mutate(child);
+//            }
+//
+//            nextGen.add(child);
+//        }
+
+        // 3. Mutation-only offspring (mutated clones from single parents)
+        for (int i = 0; i < MUTATIONSIZE; i++) {
+            CardSequence parent = parents.get(rand.nextInt(parentSize));
+            CardSequence mutant = mutate(parent);
+            //FileLogger.log("mutant cards.size(): " + mutant.getCards().size());
+            nextGen.add(mutant);
+        }
+
+        // 4. If the nextGen is short, fill with random parents
+        while (nextGen.size() < POPULATIONSIZE) {
+            int idx = ELITENUM + rand.nextInt(parentSize - ELITENUM);
+            nextGen.add(new CardSequence(parents.get(idx)));
+        }
+
+        return nextGen;
+    }
+
+//    private CardSequence crossover(CardSequence parent1, CardSequence parent2){
+//        return new CardSequence(parent1,parent2);
+//    }
+
+    private CardSequence mutate(CardSequence parent){
+        CardSequence child = new CardSequence(parent);
+        child.mutate();
+
+        return child;
+    }
+
+    private void resetLoopVars(){
+        //new loop reset vars
+        lastCmdNull = false;
+        lastCmdEnd = false;
+        previousDrawPileSize = AbstractDungeon.player.drawPile.size();
+        previousHand = null;
+
+        currSequenceValid = true;
+        cardsPlayed = 0;
+    }
+
+    private boolean removeCardAction(CardSequence currentCardSeq, boolean canValidate){
+        //returns TRUE is sequence is still valid
+        //returns FALSE if letting this stay in population could be bad, therefore invalid
+        FileLogger.log("removing card, full sequence:");
+        currentCardSeq.logCardActions();
+
+        if(cardsPlayed == currentCardSeq.getCards().size()){
+            FileLogger.log("removeCardAction out of bounds, probably discarded/exhausted:");
+            return true;
+        }
+        else if (cardsPlayed > currentCardSeq.getCards().size()){
+            FileLogger.log("removeCardAction out of bounds, maybe could not find card of specified type");
+            return false;
+        }
+        FileLogger.log("removing card: " + currentCardSeq.getCards().get(cardsPlayed).getMainCard());
+        currentCardSeq.removeCard(cardsPlayed, canValidate);
+        return true;
     }
 }

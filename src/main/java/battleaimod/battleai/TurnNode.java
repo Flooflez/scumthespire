@@ -95,7 +95,7 @@ public class TurnNode implements Comparable<TurnNode> {
             FileLogger.log("curstate Damage taken: " + StateNode.getPlayerDamage(curState));
             FileLogger.log("curstate last command: " + curState.lastCommand);
 
-            controller.turnsLoaded++;
+            //controller.turnsLoaded++;
             addRuntime("turnsLoaded", 1);
             TurnNode toAdd = new TurnNode(curState, controller, this);
             states.pop();
@@ -134,7 +134,7 @@ public class TurnNode implements Comparable<TurnNode> {
             Command toExecute = curState.step();
 
             if (toExecute == null) {
-                controller.turnsLoaded++;
+                //controller.turnsLoaded++;
                 states.pop();
                 if (!states.isEmpty()) {
                     states.peek().saveState.loadState();
