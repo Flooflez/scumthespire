@@ -1,10 +1,8 @@
 package battleaimod.battleai.evolution.utils;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 
-public class WeightedSumFitness {
+public class WeightedSumFitness implements Comparable<WeightedSumFitness> {
     private static final Random rand = new Random();
     private final double[] weights;
     private double fitness = 0;
@@ -88,6 +86,12 @@ public class WeightedSumFitness {
         }
 
         return sb.toString();
+    }
+
+    @Override
+    public int compareTo(WeightedSumFitness other) {
+        // Higher score = better (sorted descending)
+        return Double.compare(other.fitness, this.fitness);
     }
 
 }

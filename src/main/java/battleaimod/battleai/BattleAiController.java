@@ -433,6 +433,7 @@ public class BattleAiController implements Controller {
 
             isDone = true;
             bestEnd = null;
+            initialized = false;
             //throw new RuntimeException(e);
         }
 

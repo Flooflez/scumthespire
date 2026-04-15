@@ -16,20 +16,24 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
 public class EvolutionManager implements PostUpdateSubscriber {
     private boolean simRunning = false;
     public static boolean canRunAutoBattler = false;
-    private boolean inCombat = false;
-    private static Random rand = new Random();
-    private final List<WeightedSumFitness> population = new ArrayList<>();
-    private int currentFitnessIndex = 0;
+    private static final Random rand = new Random();
+    private List<WeightedSumFitness> population = new ArrayList<>();
+    private int currentFitnessIndex;
 
     private final int MIN_POPULATION = 20;
+    private final int ELITES = 5;
 
     private SaveState startingState;
+
+    private boolean waitingForCombatToSave = false;
+    private boolean waitingForCombatToBattle = false;
 
     //TODO: check if server client both using savestates is gonna explode everything
 
@@ -38,12 +42,33 @@ public class EvolutionManager implements PostUpdateSubscriber {
         if (!simRunning && Gdx.input.isKeyJustPressed(Input.Keys.H)) {
             simRunning = true;
             initEvolution();
-            startNewCombat();
+            return;
         }
-        if(inCombat){
-            if(combatOver()){
+
+        if(waitingForCombatToSave){
+            if(isInCombat()){
+                startingState = new SaveState();
+                waitingForCombatToSave = false;
+                startNewCombat();
+            }
+            return;
+        }
+
+        if(waitingForCombatToBattle){
+            if(isInCombat()){
+                EvolutionManager.canRunAutoBattler = true;
+                waitingForCombatToBattle = false;
+            }
+            return;
+        }
+
+        if(EvolutionManager.canRunAutoBattler){
+            if(combatOver()){ //detect combat is over
+                EvolutionManager.canRunAutoBattler = false;
                 System.out.println("combat over!!");
-                inCombat = false;
+
+                population.get(currentFitnessIndex).setFitnessFitness(calculateFitnessFitness());
+
                 startNewCombat();
             }
         }
@@ -51,40 +76,37 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     //TODO: check if this works when combat ends and in reward screen
     private boolean combatOver() {
+        return isInCombat() && AbstractDungeon.getCurrRoom().isBattleOver; //I added this
+    }
+
+    private boolean isInCombat() {
         return CardCrawlGame.isInARun() && AbstractDungeon.currMapNode != null
                 && AbstractDungeon.getCurrRoom() != null
-                && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT
-                && AbstractDungeon.getCurrRoom().isBattleOver; //I added this
+                && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT;
     }
 
     private void initEvolution(){
-        currentFitnessIndex = 0;
+        currentFitnessIndex = -1;
         getPopulationFromFile("FitnessFunctions.txt");
         CommandAutomator.readCommands();
-        writeFitnessFunction();
 
-
-        //TODO: make this happen when combat is ready
-        startingState = new SaveState();
+        waitingForCombatToSave = true;
     }
 
     private void startNewCombat(){
         if(currentFitnessIndex == population.size()){
             //finished all fitness functions
             if(CommandAutomator.hasNextFight()){
-                //first calculate fitness fitness
-                //sort, then evolve next gen
+                //sort
+                Collections.sort(population);
+                //evolve next gen
+                evolvePopulation();
 
                 // go to next combat:
-
                 CommandAutomator.advanceNextFight();
+                waitingForCombatToSave = true;
+                currentFitnessIndex = -1;
 
-
-                currentFitnessIndex = 0;
-                restartFight();
-
-                //TODO: make this happen when combat is ready
-                startingState = new SaveState();
             }
             else {
                 //No more combats in the command list -> FINISHED, write to file and end
@@ -96,8 +118,40 @@ public class EvolutionManager implements PostUpdateSubscriber {
         else {
             //still have fitness funcs to check
             currentFitnessIndex++;
+            writeFitnessFunction();
             restartFight();
         }
+    }
+
+    private void evolvePopulation() {
+        // Assume population is already sorted by fitness (best first)
+        List<WeightedSumFitness> newPopulation = new ArrayList<>();
+
+        // 1. Elitism (copy top ELITES without mutation)
+        for (int i = 0; i < ELITES && i < population.size(); i++) {
+            newPopulation.add(new WeightedSumFitness(population.get(i), false));
+        }
+
+        // 2. Generate rest of population
+        while (newPopulation.size() < MIN_POPULATION) {
+            // Select two parents (simple random selection)
+            WeightedSumFitness parent1 = population.get(rand.nextInt(population.size()));
+            WeightedSumFitness parent2;
+            do {
+                parent2 = population.get(rand.nextInt(population.size()));
+            } while (parent1 == parent2);
+
+            // Crossover
+            WeightedSumFitness child = new WeightedSumFitness(parent1, parent2);
+
+            // Mutation
+            child = new WeightedSumFitness(child, true);
+
+            newPopulation.add(child);
+        }
+
+        // 3. Replace old population
+        population = newPopulation;
     }
 
     private void writeFitnessFunction() {
@@ -112,15 +166,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
     }
 
     private void restartFight(){
-        inCombat = true;
-
-        //TODO:
         startingState.loadState();
-        //load SaveState instead of \/
-        //CommandAutomator.runInitCommands();
-        //CommandAutomator.restartCurrentFight();
-
-        //TODO: save the state of the start of the combat
+        waitingForCombatToBattle = true;
     }
 
     private void getPopulationFromFile(String fileName) {
@@ -165,12 +212,21 @@ public class EvolutionManager implements PostUpdateSubscriber {
         }
     }
 
-    private void sortPopulation(){
 
-    }
+    private double calculateFitnessFitness(){
+        SaveState endState = new SaveState();
 
-    private void calculateFitnessFitness(){
+        //TODO: maybe need server to send back additional info that save states can't see
+        //wasted block, energy etc.
 
+        int playerHealth = endState.getPlayerHealth();
+        int healthLost = startingState.getPlayerHealth() - endState.getPlayerHealth();
+        int turnCount = endState.turn;
+
+
+        return playerHealth * 1.0   // reward ending health
+                - healthLost * 5.0   // penalize damage taken
+                - turnCount * 2.0;  // penalize slow fights
     }
 
 }
