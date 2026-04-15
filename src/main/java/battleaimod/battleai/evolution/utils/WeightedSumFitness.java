@@ -45,11 +45,11 @@ public class WeightedSumFitness {
         }
     }
 
-    public double getFitness() {
+    public double getFitnessFitness() {
         return fitness;
     }
 
-    public void setFitness(double fitness) {
+    public void setFitnessFitness(double fitness) {
         this.fitness = fitness;
     }
 

@@ -319,7 +319,7 @@ public class BattleClientController {
         return !serverReady && serverProcess != null && serverProcess.isAlive();
     }
 
-    private static boolean canSendState() {
+    public static boolean canSendState() {
         boolean controllerRunning = BattleAiMod.rerunController != null && !BattleAiMod.rerunController.isDone;
         return serverReady && !controllerRunning && readyForUpdate();
     }
