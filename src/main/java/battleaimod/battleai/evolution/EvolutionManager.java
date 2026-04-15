@@ -6,6 +6,7 @@ import battleaimod.battleai.evolution.utils.WeightedSumFitness;
 import battleaimod.utils.CommandAutomator;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
@@ -14,10 +15,7 @@ import savestate.SaveState;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class EvolutionManager implements PostUpdateSubscriber {
     private boolean simRunning = false;
@@ -26,13 +24,17 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private List<WeightedSumFitness> population = new ArrayList<>();
     private int currentFitnessIndex;
 
-    private final int MIN_POPULATION = 10;
+    private final int MIN_POPULATION = 8;
     private final int ELITES = 3;
 
     private SaveState startingState;
 
     private boolean waitingForCombatToSave = false;
     private boolean waitingForCombatToBattle = false;
+    private boolean waitingForDeckUpdate = false;
+
+    private ArrayList<AbstractCard> startingDeck;
+
 
     //TODO: check if server client both using savestates is gonna explode everything
 
@@ -42,6 +44,15 @@ public class EvolutionManager implements PostUpdateSubscriber {
             System.out.println("starting sim");
             simRunning = true;
             initEvolution();
+            return;
+        }
+
+        if(waitingForDeckUpdate){
+            if(checkDeckUpdated()){
+                waitingForDeckUpdate = false;
+                CommandAutomator.restartCurrentFight();
+                waitingForCombatToSave = true;
+            }
             return;
         }
 
@@ -65,7 +76,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
         if(EvolutionManager.canRunAutoBattler){
             if(combatOver()){ //detect combat is over
                 EvolutionManager.canRunAutoBattler = false;
-                System.out.println("combat over!!");
+                System.out.println("combat over detected!!");
 
                 population.get(currentFitnessIndex).setFitnessFitness(calculateFitnessFitness());
 
@@ -91,11 +102,48 @@ public class EvolutionManager implements PostUpdateSubscriber {
         CommandAutomator.readCommands();
 
         CommandAutomator.runInitCommands();
-        CommandAutomator.restartCurrentFight();
-        waitingForCombatToSave = true;
+        startingDeck = new ArrayList<>(AbstractDungeon.player.masterDeck.group);
+        waitingForDeckUpdate = true;
+
+    }
+
+    private boolean checkDeckUpdated() {
+        ArrayList<AbstractCard> newDeck =
+                new ArrayList<>(AbstractDungeon.player.masterDeck.group);
+
+        System.out.println("deck size == " + newDeck.size());
+        if(newDeck.isEmpty()) return false;
+
+        // Different sizes → definitely different
+        if (newDeck.size() != startingDeck.size()) return true;
+
+        Map<String, Integer> countMap = new HashMap<>();
+
+        // Count starting deck
+        for (AbstractCard card : startingDeck) {
+            String key = card.cardID;
+            countMap.put(key, countMap.getOrDefault(key, 0) + 1);
+        }
+
+        // Subtract using new deck
+        for (AbstractCard card : newDeck) {
+            String key = card.cardID;
+
+            if (!countMap.containsKey(key)) return true;
+
+            countMap.put(key, countMap.get(key) - 1);
+
+            if (countMap.get(key) == 0) {
+                countMap.remove(key);
+            }
+        }
+
+        // If empty → exact match
+        return !countMap.isEmpty();
     }
 
     private void startNewCombat(){
+        currentFitnessIndex++;
         if(currentFitnessIndex == population.size()){
             //finished all fitness functions
             if(CommandAutomator.hasNextFight()){
@@ -120,7 +168,6 @@ public class EvolutionManager implements PostUpdateSubscriber {
         }
         else {
             //still have fitness funcs to check
-            currentFitnessIndex++;
             writeFitnessFunction();
             restartFight();
         }
