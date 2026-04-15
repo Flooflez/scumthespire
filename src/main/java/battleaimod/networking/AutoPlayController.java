@@ -12,7 +12,6 @@ public class AutoPlayController implements PostUpdateSubscriber {
     private boolean hasTriggeredThisTurn = false;
 
 
-
     private boolean inCombat() {
         return CardCrawlGame.isInARun() && AbstractDungeon.currMapNode != null && AbstractDungeon
                 .getCurrRoom() != null && AbstractDungeon

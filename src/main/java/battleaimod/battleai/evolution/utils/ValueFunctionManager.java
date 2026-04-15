@@ -16,10 +16,11 @@ public class ValueFunctionManager {
         DAMAGE_RECEIVED,
         MONSTERS_REMAINING,
         SUM_MONSTER_HEALTH,
-        POWERS_PLAYED,
-        SUM_POISON,
-        SUM_WEAK,
-        SUM_VULNERABLE;
+        //POWERS_PLAYED,
+        //SUM_POISON,
+        //SUM_WEAK,
+        //SUM_VULNERABLE;
+        ;
     }
 
 

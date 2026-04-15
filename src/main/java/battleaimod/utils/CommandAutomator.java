@@ -21,17 +21,19 @@ public class CommandAutomator {
 
     public static void runInitCommands(){
         for(String cmd:initCommands){
-            runSilentCommand(cmd);
+            runCommand(cmd);
         }
     }
 
     public static void readCommands(){
+        System.out.println("reading commands from files...");
         readCommandsFromFile("InitCommands.txt", initCommands);
         readCommandsFromFile("FightCommands.txt", fightCommands);
     }
 
     public static void restartCurrentFight(){
-        runSilentCommand(fightCommands.peek());
+        System.out.println("Running fight command");
+        runCommand(fightCommands.peek());
     }
 
     public static boolean hasNextFight(){
@@ -55,7 +57,7 @@ public class CommandAutomator {
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             collection.clear();
             String line;
-            System.out.println("--- Starting Batch Commands from " + fileName + " ---");
+            System.out.println("--- Reading Batch Commands from " + fileName + " ---");
 
             while ((line = br.readLine()) != null) {
                 line = line.trim();
@@ -65,11 +67,11 @@ public class CommandAutomator {
                     continue;
                 }
 
-                System.out.println("Executing: " + line);
+                System.out.println("Reading: " + line);
                 collection.add(line);
             }
 
-            System.out.println("--- Finished Batch Commands ---");
+            System.out.println("--- Finished Reading Commands ---");
 
         } catch (IOException e) {
             System.out.println("An error occurred while reading the command file!");
@@ -81,7 +83,7 @@ public class CommandAutomator {
     /**
      * Executes a BaseMod console command silently via code.
      */
-    public static void runSilentCommand(String commandString) {
+    public static void runCommand(String commandString) {
         if (commandString == null || commandString.trim().isEmpty()) {
             return;
         }
@@ -92,8 +94,9 @@ public class CommandAutomator {
         try {
             // Pass the tokens directly into BaseMod's built-in execution method
             ConsoleCommand.execute(tokens);
+            System.out.println("Ran command: " + commandString);
         } catch (Exception e) {
-            System.out.println("Error executing command silently: " + commandString);
+            System.out.println("Error executing command: " + commandString);
             e.printStackTrace();
         }
     }

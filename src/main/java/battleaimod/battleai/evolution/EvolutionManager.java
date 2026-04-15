@@ -1,5 +1,6 @@
 package battleaimod.battleai.evolution;
 
+import basemod.BaseMod;
 import basemod.interfaces.PostUpdateSubscriber;
 import battleaimod.battleai.evolution.utils.WeightedSumFitness;
 import battleaimod.utils.CommandAutomator;
@@ -10,9 +11,7 @@ import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
 import savestate.SaveState;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -27,8 +26,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private List<WeightedSumFitness> population = new ArrayList<>();
     private int currentFitnessIndex;
 
-    private final int MIN_POPULATION = 20;
-    private final int ELITES = 5;
+    private final int MIN_POPULATION = 10;
+    private final int ELITES = 3;
 
     private SaveState startingState;
 
@@ -40,6 +39,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
     @Override
     public void receivePostUpdate() {
         if (!simRunning && Gdx.input.isKeyJustPressed(Input.Keys.H)) {
+            System.out.println("starting sim");
             simRunning = true;
             initEvolution();
             return;
@@ -76,7 +76,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     //TODO: check if this works when combat ends and in reward screen
     private boolean combatOver() {
-        return isInCombat() && AbstractDungeon.getCurrRoom().isBattleOver; //I added this
+        return isInCombat() && (AbstractDungeon.getCurrRoom().isBattleOver || AbstractDungeon.player.isDead); //I added this
     }
 
     private boolean isInCombat() {
@@ -90,8 +90,9 @@ public class EvolutionManager implements PostUpdateSubscriber {
         getPopulationFromFile("FitnessFunctions.txt");
         CommandAutomator.readCommands();
 
-        waitingForCombatToSave = true;
+        CommandAutomator.runInitCommands();
         CommandAutomator.restartCurrentFight();
+        waitingForCombatToSave = true;
     }
 
     private void startNewCombat(){
@@ -175,7 +176,14 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private void getPopulationFromFile(String fileName) {
         population.clear();
 
-        try (BufferedReader reader = Files.newBufferedReader(Paths.get(fileName))) {
+        File file = new File(fileName);
+
+        if (!file.exists()) {
+            System.out.println("Could not find the command file at: " + file.getAbsolutePath());
+            return;
+        }
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
 
             while ((line = reader.readLine()) != null) {

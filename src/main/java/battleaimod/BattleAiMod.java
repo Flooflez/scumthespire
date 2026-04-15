@@ -17,6 +17,7 @@ import basemod.interfaces.RenderSubscriber;
 import basemod.patches.com.megacrit.cardcrawl.helpers.PotionLibrary.PotionHelperGetPotion;
 import battleaimod.battleai.BattleAiController;
 import battleaimod.battleai.CommandRunnerController;
+import battleaimod.battleai.evolution.EvolutionManager;
 import battleaimod.battleai.playorder.BadCardsLastHeuristic;
 import battleaimod.battleai.playorder.DefectPlayOrder;
 import battleaimod.battleai.playorder.DiscardOrder;
@@ -119,6 +120,7 @@ public class BattleAiMod implements PostInitializeSubscriber, PostUpdateSubscrib
         BaseMod.subscribe(this);
         BaseMod.subscribe(new LudicrousSpeedMod());
         BaseMod.subscribe(new AutoPlayController());
+        BaseMod.subscribe(new EvolutionManager());
 
         BaseMod.logger.log(Level.INFO, "BattleAIMod constructor");
 
@@ -223,7 +225,7 @@ public class BattleAiMod implements PostInitializeSubscriber, PostUpdateSubscrib
         BaseMod.addTopPanelItem(new StartAiClientTopPanel());
         BaseMod.registerModBadge(ImageMaster.loadImage("Icon.png"), "Battle Ai Mod", "Board Engineer", "Plays the Battle for yourself", new BattleAiModOptionsPanel());
 
-        new battleaimod.utils.CommandAutomator();
+
     }
 
     public void receivePostUpdate() {
