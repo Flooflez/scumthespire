@@ -10,20 +10,65 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Queue;
 
 public class CommandAutomator implements PostUpdateSubscriber {
+
+    private final static Queue<String> fightCommands = new ArrayDeque<>();
 
     // Subscribe to BaseMod so it knows to listen to this class
     public CommandAutomator() {
         BaseMod.subscribe(this);
+        readFightCommands();
     }
 
     // Check for key press
     @Override
     public void receivePostUpdate() {
-        if (Gdx.input.isKeyJustPressed(Input.Keys.H)) {
-            runCommandsFromFile("commands.txt");
+        //moved to EvolutionManager
+    }
+
+    public static void runInitCommands(){
+        runCommandsFromFile("InitCommands.txt");
+    }
+
+    private static void readFightCommands(){
+        File file = new File("FightCommands.txt");
+
+        if (!file.exists()) {
+            System.out.println("Could not find the command file at: " + file.getAbsolutePath());
+            throw new RuntimeException("Missing FightCommands.txt");
         }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                line = line.trim();
+
+                // Skip empty lines and comments
+                if (line.isEmpty() || line.startsWith("#") || line.startsWith("//")) {
+                    continue;
+                }
+                fightCommands.add(line);
+            }
+
+        } catch (IOException e) {
+            System.out.println("An error occurred while reading the FightCommands file!");
+        }
+    }
+
+    public static void restartCurrentFight(){
+        runSilentCommand(fightCommands.peek());
+    }
+
+    public static boolean hasNextFight(){
+        return !fightCommands.isEmpty();
+    }
+
+    public static void advanceNextFight(){
+        //DOES NOT RUN THE FIGHT COMMAND
+        fightCommands.poll();
     }
 
     // File reader logic

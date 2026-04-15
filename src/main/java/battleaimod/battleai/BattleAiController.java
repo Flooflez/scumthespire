@@ -535,6 +535,7 @@ public class BattleAiController implements Controller {
         return CardCrawlGame.mode == CardCrawlGame.GameMode.GAMEPLAY && AbstractDungeon.isPlayerInDungeon() && AbstractDungeon.currMapNode != null;
     }
 
+
     private void addNewCardsInHand(CardSequence currentCardSeq) {
         if(currentCardSeq == null){
             FileLogger.logError("currentCardSeq null in addNewCardsInHand, skipping");

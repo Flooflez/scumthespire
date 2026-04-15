@@ -23,6 +23,14 @@ public class AutoPlayController implements PostUpdateSubscriber {
                 .getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT;
     }
 
+    //TODO: check if this works when combat ends and in reward screen
+    private boolean combatOver() {
+        return CardCrawlGame.isInARun() && AbstractDungeon.currMapNode != null
+                && AbstractDungeon.getCurrRoom() != null
+                && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT
+                && AbstractDungeon.getCurrRoom().isBattleOver; //I added this
+    }
+
     @Override
     public void receivePostUpdate() {
 
