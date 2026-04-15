@@ -87,13 +87,18 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     //TODO: check if this works when combat ends and in reward screen
     private boolean combatOver() {
-        return isInCombat() && (AbstractDungeon.getCurrRoom().isBattleOver || AbstractDungeon.player.isDead); //I added this
+        return isDead() || (isInCombat() && (AbstractDungeon.getCurrRoom().isBattleOver));
     }
 
     private boolean isInCombat() {
         return CardCrawlGame.isInARun() && AbstractDungeon.currMapNode != null
                 && AbstractDungeon.getCurrRoom() != null
                 && AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT;
+    }
+
+    private boolean isDead(){
+        //return AbstractDungeon.player.isDead || AbstractDungeon.player.isDying;
+        return (AbstractDungeon.isScreenUp && AbstractDungeon.screen == AbstractDungeon.CurrentScreen.DEATH);
     }
 
     private void initEvolution(){
@@ -111,7 +116,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
         ArrayList<AbstractCard> newDeck =
                 new ArrayList<>(AbstractDungeon.player.masterDeck.group);
 
-        System.out.println("deck size == " + newDeck.size());
+        //System.out.println("deck size == " + newDeck.size());
         if(newDeck.isEmpty()) return false;
 
         // Different sizes → definitely different
