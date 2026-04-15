@@ -312,7 +312,7 @@ public class AiClient {
         ArrayList<Command> commandsFromServer = new ArrayList<>();
 
         for (JsonElement jsonCommand : jsonCommands) {
-            System.err.println("Command: " + jsonCommand.toString());
+            //System.err.println("Command: " + jsonCommand.toString());
             Command toAdd = toCommand(jsonCommand);
             commandsFromServer.add(toAdd);
         }

@@ -36,6 +36,10 @@ public class CommandAutomator {
         runCommand(fightCommands.peek());
     }
 
+    public static String getCurrentFight(){
+        return fightCommands.peek();
+    }
+
     public static boolean hasNextFight(){
         return !fightCommands.isEmpty();
     }

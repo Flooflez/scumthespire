@@ -24,8 +24,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private List<WeightedSumFitness> population = new ArrayList<>();
     private int currentFitnessIndex;
 
-    private final int MIN_POPULATION = 8;
-    private final int ELITES = 3;
+    private final int MIN_POPULATION = 5;
+    private final int ELITES = 2;
 
     private SaveState startingState;
 
@@ -151,14 +151,18 @@ public class EvolutionManager implements PostUpdateSubscriber {
         currentFitnessIndex++;
         if(currentFitnessIndex == population.size()){
             //finished all fitness functions
+            System.out.println("Finished all fights for: " + CommandAutomator.getCurrentFight());
+            CommandAutomator.advanceNextFight();
             if(CommandAutomator.hasNextFight()){
+
+                System.out.println("Sorting and Evolving next gen");
                 //sort
                 Collections.sort(population);
                 //evolve next gen
                 evolvePopulation();
 
                 // go to next combat:
-                CommandAutomator.advanceNextFight();
+                System.out.println("Going to next fight: " + CommandAutomator.getCurrentFight());
                 CommandAutomator.restartCurrentFight();
                 waitingForCombatToSave = true;
                 currentFitnessIndex = -1;
