@@ -10,24 +10,47 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.*;
 
-public class CommandAutomator implements PostUpdateSubscriber {
+public class CommandAutomator {
 
-    // Subscribe to BaseMod so it knows to listen to this class
-    public CommandAutomator() {
-        BaseMod.subscribe(this);
-    }
+    private final static Queue<String> fightCommands = new ArrayDeque<>();
 
-    // Check for key press
-    @Override
-    public void receivePostUpdate() {
-        if (Gdx.input.isKeyJustPressed(Input.Keys.H)) {
-            runCommandsFromFile("commands.txt");
+    private final static List<String> initCommands = new ArrayList<>();
+
+
+    public static void runInitCommands(){
+        for(String cmd:initCommands){
+            runCommand(cmd);
         }
     }
 
+    public static void readCommands(){
+        System.out.println("reading commands from files...");
+        readCommandsFromFile("InitCommands.txt", initCommands);
+        readCommandsFromFile("FightCommands.txt", fightCommands);
+    }
+
+    public static void restartCurrentFight(){
+        System.out.println("Running fight command");
+        runCommand(fightCommands.peek());
+    }
+
+    public static String getCurrentFight(){
+        return fightCommands.peek();
+    }
+
+    public static boolean hasNextFight(){
+        return !fightCommands.isEmpty();
+    }
+
+    public static void advanceNextFight(){
+        //DOES NOT RUN THE FIGHT COMMAND
+        fightCommands.poll();
+    }
+
     // File reader logic
-    public static void runCommandsFromFile(String fileName) {
+    public static void readCommandsFromFile(String fileName, Collection<String> collection) {
         File file = new File(fileName);
 
         if (!file.exists()) {
@@ -36,8 +59,9 @@ public class CommandAutomator implements PostUpdateSubscriber {
         }
 
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            collection.clear();
             String line;
-            System.out.println("--- Starting Batch Commands from " + fileName + " ---");
+            System.out.println("--- Reading Batch Commands from " + fileName + " ---");
 
             while ((line = br.readLine()) != null) {
                 line = line.trim();
@@ -47,11 +71,11 @@ public class CommandAutomator implements PostUpdateSubscriber {
                     continue;
                 }
 
-                System.out.println("Executing: " + line);
-                runSilentCommand(line);
+                System.out.println("Reading: " + line);
+                collection.add(line);
             }
 
-            System.out.println("--- Finished Batch Commands ---");
+            System.out.println("--- Finished Reading Commands ---");
 
         } catch (IOException e) {
             System.out.println("An error occurred while reading the command file!");
@@ -63,7 +87,7 @@ public class CommandAutomator implements PostUpdateSubscriber {
     /**
      * Executes a BaseMod console command silently via code.
      */
-    public static void runSilentCommand(String commandString) {
+    public static void runCommand(String commandString) {
         if (commandString == null || commandString.trim().isEmpty()) {
             return;
         }
@@ -74,8 +98,9 @@ public class CommandAutomator implements PostUpdateSubscriber {
         try {
             // Pass the tokens directly into BaseMod's built-in execution method
             ConsoleCommand.execute(tokens);
+            System.out.println("Ran command: " + commandString);
         } catch (Exception e) {
-            System.out.println("Error executing command silently: " + commandString);
+            System.out.println("Error executing command: " + commandString);
             e.printStackTrace();
         }
     }

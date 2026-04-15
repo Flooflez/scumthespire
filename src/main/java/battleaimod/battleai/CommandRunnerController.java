@@ -1,8 +1,11 @@
 package battleaimod.battleai;
 
 import battleaimod.BattleAiMod;
+import battleaimod.battleai.evolution.EvolutionManager;
+import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import ludicrousspeed.Controller;
+import ludicrousspeed.simulator.commands.CardCommand;
 import ludicrousspeed.simulator.commands.Command;
 
 import java.util.HashMap;
@@ -68,6 +71,11 @@ public class CommandRunnerController implements Controller {
             if (command != null) {
                 foundCommand = true;
                 command.execute();
+                if(command instanceof CardCommand){
+                    AbstractCard card = (AbstractCard)AbstractDungeon.player.hand.group.get(((CardCommand) command).cardIndex);
+                    EvolutionManager.addCardPlayed(card);
+                }
+
             } else {
                 foundCommand = true;
             }

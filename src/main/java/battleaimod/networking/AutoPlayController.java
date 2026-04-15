@@ -1,6 +1,7 @@
 package battleaimod.networking;
 
 import basemod.interfaces.PostUpdateSubscriber;
+import battleaimod.battleai.evolution.EvolutionManager;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import battleaimod.BattleAiMod;
@@ -10,12 +11,6 @@ public class AutoPlayController implements PostUpdateSubscriber {
 
     private boolean hasTriggeredThisTurn = false;
 
-
-    //original is private, not sure if I can make it public, so I create a copy.
-    private boolean canSendStateSafe() {
-        boolean controllerRunning = BattleAiMod.rerunController != null && !BattleAiMod.rerunController.isDone;
-        return BattleClientController.readyForUpdate() && !controllerRunning;
-    }
 
     private boolean inCombat() {
         return CardCrawlGame.isInARun() && AbstractDungeon.currMapNode != null && AbstractDungeon
@@ -27,6 +22,9 @@ public class AutoPlayController implements PostUpdateSubscriber {
     public void receivePostUpdate() {
 
         if (!inCombat()) return;
+
+        //if EvolutionManager not ready, don't do anything
+        if(!EvolutionManager.canRunAutoBattler)return;
 
         // Trigger once per player turn when game is ready.
         if (!AbstractDungeon.actionManager.turnHasEnded
@@ -45,7 +43,7 @@ public class AutoPlayController implements PostUpdateSubscriber {
     }
 
     private void triggerSimulation() {
-        if (!canSendStateSafe()) {
+        if (!StatusAndControlThreads.canSendState()) {
             return;
         }
         try {
@@ -53,9 +51,7 @@ public class AutoPlayController implements PostUpdateSubscriber {
                 BattleAiMod.aiClient = new AiClient();
             }
 
-            if (BattleAiMod.aiClient != null) {
-                BattleAiMod.aiClient.sendState();
-            }
+            BattleAiMod.aiClient.sendState();
 
         } catch (Exception e) {
             e.printStackTrace();

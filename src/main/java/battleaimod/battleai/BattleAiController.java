@@ -5,6 +5,8 @@ import battleaimod.ValueFunctions;
 import battleaimod.battleai.data.CardAction;
 import battleaimod.battleai.data.CardSequence;
 import battleaimod.battleai.data.dummycommands.*;
+import battleaimod.battleai.evolution.utils.ValueFunctionManager;
+import battleaimod.battleai.evolution.utils.WeightedSumFitness;
 import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
@@ -17,6 +19,11 @@ import savestate.CardState;
 import savestate.SaveState;
 import savestate.SaveStateMod;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 
 public class BattleAiController implements Controller {
@@ -62,6 +69,7 @@ public class BattleAiController implements Controller {
     private boolean lastCmdEnd = false;
     private boolean currSequenceValid = true;
     private int cardsPlayed = 0;
+    private WeightedSumFitness currentFitness;
 
     private int currentGeneration = 0;
     private final int GENERATIONS = 10;
@@ -182,7 +190,7 @@ public class BattleAiController implements Controller {
         FileLogger.log("Damage taken: " + StateNode.getPlayerDamage(end));
         FileLogger.log("Damage Dealt: " + ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState));
         FileLogger.log("Monster HP: " + ValueFunctions.getTotalMonsterHealth(end.saveState));
-        FileLogger.log("Score: " + getFitness(start, end));
+        FileLogger.log("Score: " + getFitness(start, end, finalSequence.getCardsAsAbstractCard()));
         FileLogger.log("Final Cards: ");
         for(CardAction a : finalSequence.getCards()){
             FileLogger.log("   "+a.getMainCard().toString());
@@ -194,19 +202,37 @@ public class BattleAiController implements Controller {
         FileLogger.log("==========================");
     }
 
-    private double getFitness(StateNode start, StateNode end) {
-        double damageTaken = StateNode.getPlayerDamage(end);
-        double damageDealt = ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState);
-        double remainingHP = ValueFunctions.getTotalMonsterHealth(end.saveState);
-        int remainingMonsters = ValueFunctions.getAliveMonsterCount(end.saveState);
+    private void loadFitness() {
+        try (BufferedReader reader = Files.newBufferedReader(Paths.get("CurrentFitnessValues.txt"))) {
+            String line = reader.readLine();
 
-        double fitness = (damageDealt * 2.0)
-                - (damageTaken * 5.0)
-                - (remainingHP * 1.0)
-                - (remainingMonsters * 10.0);
+            if (line == null || line.trim().isEmpty()) {
+                return;
+            }
 
-        return fitness;
+            currentFitness = new WeightedSumFitness(line.trim());
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load fitness file", e);
+        }
     }
+
+    private double getFitness(StateNode start, StateNode end, List<AbstractCard> cardsPlayed) {
+        ValueFunctionManager.initFuncValues(start.saveState, end.saveState, cardsPlayed);
+
+//        double damageTaken = StateNode.getPlayerDamage(end);
+//        double damageDealt = ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState);
+//        double remainingHP = ValueFunctions.getTotalMonsterHealth(end.saveState);
+//        int remainingMonsters = ValueFunctions.getAliveMonsterCount(end.saveState);
+//
+//        double fitness = (damageDealt * 2.0)
+//                - (damageTaken * 5.0)
+//                - (remainingHP * 1.0)
+//                - (remainingMonsters * 10.0);
+
+        return currentFitness.evaluate();
+    }
+
 
     private Deque<DummyCommand> actionsToCommands(List<CardAction> cardActionList){
         Deque<DummyCommand> commands = new ArrayDeque<>();
@@ -230,6 +256,8 @@ public class BattleAiController implements Controller {
                 bestEnd = null;
                 //shouldRunEndCommand = false;
                 finalSequences = new ArrayList<>();
+
+                loadFitness();
 
                 // Match A* init
                 SaveStateMod.runTimes = new HashMap<>();
@@ -290,7 +318,7 @@ public class BattleAiController implements Controller {
                         //FileLogger.log("last command: " +currentState.lastCommand);
                         FileLogger.log("size of node list: "+ stateNodesToGetToNode(currentState).size());
 
-                        double turnFitness = getFitness(startStateNode, currentState);
+                        double turnFitness = getFitness(startStateNode, currentState, currentCardSeq.getCardsAsAbstractCard());
                         FileLogger.log("fitness: "+turnFitness);
 
                         currentCardSeq.setFitness(turnFitness);
@@ -405,6 +433,7 @@ public class BattleAiController implements Controller {
 
             isDone = true;
             bestEnd = null;
+            initialized = false;
             //throw new RuntimeException(e);
         }
 
@@ -534,6 +563,7 @@ public class BattleAiController implements Controller {
     private static boolean isInDungeon() {
         return CardCrawlGame.mode == CardCrawlGame.GameMode.GAMEPLAY && AbstractDungeon.isPlayerInDungeon() && AbstractDungeon.currMapNode != null;
     }
+
 
     private void addNewCardsInHand(CardSequence currentCardSeq) {
         if(currentCardSeq == null){
