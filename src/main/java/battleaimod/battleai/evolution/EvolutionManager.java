@@ -91,6 +91,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
         CommandAutomator.readCommands();
 
         waitingForCombatToSave = true;
+        CommandAutomator.restartCurrentFight();
     }
 
     private void startNewCombat(){
@@ -104,6 +105,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
                 // go to next combat:
                 CommandAutomator.advanceNextFight();
+                CommandAutomator.restartCurrentFight();
                 waitingForCombatToSave = true;
                 currentFitnessIndex = -1;
 

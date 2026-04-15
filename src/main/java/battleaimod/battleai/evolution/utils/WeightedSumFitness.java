@@ -43,10 +43,6 @@ public class WeightedSumFitness implements Comparable<WeightedSumFitness> {
         }
     }
 
-    public double getFitnessFitness() {
-        return fitness;
-    }
-
     public void setFitnessFitness(double fitness) {
         this.fitness = fitness;
     }
