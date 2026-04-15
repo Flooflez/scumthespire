@@ -6,6 +6,10 @@ import battleaimod.battleai.evolution.utils.WeightedSumFitness;
 import battleaimod.utils.CommandAutomator;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.megacrit.cardcrawl.actions.AbstractGameAction;
+import com.megacrit.cardcrawl.actions.GameActionManager;
+import com.megacrit.cardcrawl.actions.common.HealAction;
+import com.megacrit.cardcrawl.actions.common.LoseHPAction;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
@@ -24,7 +28,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private List<WeightedSumFitness> population = new ArrayList<>();
     private int currentFitnessIndex;
 
-    private final int MIN_POPULATION = 5;
+    private final int MIN_POPULATION = 4;
     private final int ELITES = 2;
 
     private SaveState startingState;
@@ -32,8 +36,11 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private boolean waitingForCombatToSave = false;
     private boolean waitingForCombatToBattle = false;
     private boolean waitingForDeckUpdate = false;
+    private boolean waitingForCombatReset = false;
 
     private ArrayList<AbstractCard> startingDeck;
+    private int startingHp;
+    private int startingTurn;
 
 
     //TODO: check if server client both using savestates is gonna explode everything
@@ -49,6 +56,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
         if(waitingForDeckUpdate){
             if(checkDeckUpdated()){
+                startingHp = AbstractDungeon.player.currentHealth;
                 waitingForDeckUpdate = false;
                 CommandAutomator.restartCurrentFight();
                 waitingForCombatToSave = true;
@@ -59,10 +67,18 @@ public class EvolutionManager implements PostUpdateSubscriber {
         if(waitingForCombatToSave){
             if(isInCombat()){
                 startingState = new SaveState();
+                startingTurn = GameActionManager.turn;
                 waitingForCombatToSave = false;
                 startNewCombat();
             }
             return;
+        }
+
+        if (waitingForCombatReset) {
+            if(AbstractDungeon.player.currentHealth == startingHp && GameActionManager.turn == startingTurn){
+                waitingForCombatReset = false;
+                startNextGenCombat();
+            }
         }
 
         if(waitingForCombatToBattle){
@@ -162,10 +178,10 @@ public class EvolutionManager implements PostUpdateSubscriber {
                 evolvePopulation();
 
                 // go to next combat:
-                System.out.println("Going to next fight: " + CommandAutomator.getCurrentFight());
-                CommandAutomator.restartCurrentFight();
-                waitingForCombatToSave = true;
-                currentFitnessIndex = -1;
+
+                System.out.println("Resetting state");
+                waitingForCombatReset = true;
+                startingState.loadState();
 
             }
             else {
@@ -295,4 +311,10 @@ public class EvolutionManager implements PostUpdateSubscriber {
                 - turnCount * 2.0;  // penalize slow fights
     }
 
+    private void startNextGenCombat(){
+        System.out.println("Going to next fight: " + CommandAutomator.getCurrentFight());
+        CommandAutomator.restartCurrentFight();
+        waitingForCombatToSave = true;
+        currentFitnessIndex = -1;
+    }
 }

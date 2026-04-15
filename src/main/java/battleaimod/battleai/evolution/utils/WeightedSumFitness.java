@@ -59,15 +59,41 @@ public class WeightedSumFitness implements Comparable<WeightedSumFitness> {
     public double mutateWeight(double oldWeight) {
         double r = rand.nextDouble();
 
+        // Escape exact zero
+        if (oldWeight == 0.0) {
+            oldWeight = rand.nextGaussian() * 0.1;
+        }
+
         if (r < 0.9) {
+            // Small relative mutation
             double sigma = 0.1;
             oldWeight *= (1 + rand.nextGaussian() * sigma);
         } else {
+            // Large mutation (allow sign flip)
             double factor = 0.2 + rand.nextDouble() * 4.8;
+            if (rand.nextBoolean()) factor *= -1;
             oldWeight *= factor;
         }
 
-        return Math.max(1e-6, Math.min(1e6, oldWeight));
+        // Optional additive mutation (helps cross zero smoothly)
+        if (rand.nextDouble() < 0.1) {
+            oldWeight += rand.nextGaussian() * 0.05;
+        }
+
+        // 🔥 Snap-to-zero logic
+        double epsilon = 1e-3;       // "close to zero" threshold
+        double zeroChance = 0.3;     // probability of snapping
+
+        if (Math.abs(oldWeight) < epsilon && rand.nextDouble() < zeroChance) {
+            oldWeight = 0.0;
+        }
+
+        // Symmetric clamp
+        double max = 1e6;
+        if (oldWeight > max) oldWeight = max;
+        if (oldWeight < -max) oldWeight = -max;
+
+        return oldWeight;
     }
 
     @Override
