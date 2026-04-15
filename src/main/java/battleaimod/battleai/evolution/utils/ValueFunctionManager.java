@@ -2,9 +2,11 @@ package battleaimod.battleai.evolution.utils;
 
 import battleaimod.ValueFunctions;
 import battleaimod.battleai.StateNode;
+import com.megacrit.cardcrawl.cards.AbstractCard;
 import savestate.SaveState;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ValueFunctionManager {
@@ -16,7 +18,7 @@ public class ValueFunctionManager {
         DAMAGE_RECEIVED,
         MONSTERS_REMAINING,
         SUM_MONSTER_HEALTH,
-        //POWERS_PLAYED,
+        POWERS_PLAYED,
         //SUM_POISON,
         //SUM_WEAK,
         //SUM_VULNERABLE;
@@ -26,12 +28,14 @@ public class ValueFunctionManager {
 
     private static SaveState startState;
     private static SaveState endState;
+    private static List<AbstractCard> cardsPlayed;
 
     private static final Map<Variables, Double> valueMap = new HashMap<>();
 
-    public static void initFuncValues(SaveState startState,SaveState endState){
+    public static void initFuncValues(SaveState startState, SaveState endState, List<AbstractCard> cardsPlayed){
         ValueFunctionManager.startState = startState;
         ValueFunctionManager.endState = endState;
+        ValueFunctionManager.cardsPlayed = cardsPlayed;
 
         ValueFunctionManager.valueMap.put(Variables.SUM_DAMAGE_DEALT,
                 (double) ValueFunctionManager.getTotalDamageDealt());
@@ -44,6 +48,9 @@ public class ValueFunctionManager {
 
         ValueFunctionManager.valueMap.put(Variables.DAMAGE_RECEIVED,
                 (double) ValueFunctionManager.getPlayerDamage());
+
+        ValueFunctionManager.valueMap.put(Variables.POWERS_PLAYED,
+                (double) ValueFunctionManager.getNumberPowersPlayed());
 
     }
 
@@ -95,5 +102,15 @@ public class ValueFunctionManager {
 
     public static double getVariableValue(Variables var){
         return valueMap.getOrDefault(var, 0.0);
+    }
+
+    public static int getNumberPowersPlayed(){
+        int sum = 0;
+        for(AbstractCard c : cardsPlayed){
+            if(c.type == AbstractCard.CardType.POWER){
+                sum++;
+            }
+        }
+        return sum;
     }
 }

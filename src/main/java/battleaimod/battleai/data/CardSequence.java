@@ -95,6 +95,14 @@ public class CardSequence implements Comparable<CardSequence> {
         return cards;
     }
 
+    public List<AbstractCard> getCardsAsAbstractCard() {
+        List<AbstractCard> abstractCards = new ArrayList<>();
+        for(CardAction a : cards){
+            abstractCards.add(a.getMainCard());
+        }
+        return abstractCards;
+    }
+
     public AbstractCard getNextHandSelectCard(){
         if(leftoverCardIndex == leftoverCardOrder.size()){ //ran out of leftovers
             if(cardsCreated.isEmpty()){ //check if we drew or created anything

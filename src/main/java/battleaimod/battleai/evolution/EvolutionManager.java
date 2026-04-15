@@ -1,20 +1,20 @@
 package battleaimod.battleai.evolution;
 
-import basemod.BaseMod;
 import basemod.interfaces.PostUpdateSubscriber;
+import battleaimod.BattleAiMod;
 import battleaimod.battleai.evolution.utils.WeightedSumFitness;
 import battleaimod.utils.CommandAutomator;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
-import com.megacrit.cardcrawl.actions.AbstractGameAction;
 import com.megacrit.cardcrawl.actions.GameActionManager;
-import com.megacrit.cardcrawl.actions.common.HealAction;
-import com.megacrit.cardcrawl.actions.common.LoseHPAction;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
+import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
+import ludicrousspeed.LudicrousSpeedMod;
 import savestate.SaveState;
+import savestate.SaveStateMod;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -28,8 +28,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private List<WeightedSumFitness> population = new ArrayList<>();
     private int currentFitnessIndex;
 
-    private final int MIN_POPULATION = 4;
-    private final int ELITES = 2;
+    private final int MIN_POPULATION = 10;
+    private final int ELITES = 3;
 
     private SaveState startingState;
 
@@ -41,6 +41,11 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private ArrayList<AbstractCard> startingDeck;
     private int startingHp;
     private int startingTurn;
+
+    private static List<AbstractCard> cardsPlayed = new ArrayList<>();
+
+    private final boolean ALLOW_FAST_MODE = true;
+    private boolean currentlyFast = false;
 
 
     //TODO: check if server client both using savestates is gonna explode everything
@@ -126,6 +131,37 @@ public class EvolutionManager implements PostUpdateSubscriber {
         startingDeck = new ArrayList<>(AbstractDungeon.player.masterDeck.group);
         waitingForDeckUpdate = true;
 
+        toggleFast();
+    }
+
+    private void toggleFast() {
+        if(!ALLOW_FAST_MODE) return;
+
+        if(!currentlyFast){
+            //BattleAiMod.goFast = true;
+            //SaveStateMod.shouldGoFast = true;
+            //LudicrousSpeedMod.plaidMode = true;
+            Settings.ACTION_DUR_XFAST = 0.001F;
+            Settings.ACTION_DUR_FASTER = 0.002F;
+            Settings.ACTION_DUR_FAST = 0.0025F;
+            Settings.ACTION_DUR_MED = 0.005F;
+            Settings.ACTION_DUR_LONG = 0.01F;
+            Settings.ACTION_DUR_XLONG = 0.015F;
+        }
+        else {
+            //BattleAiMod.goFast = false;
+            //SaveStateMod.shouldGoFast = false;
+            //LudicrousSpeedMod.plaidMode = false;
+            Settings.ACTION_DUR_XFAST = 0.1F;
+            Settings.ACTION_DUR_FASTER = 0.2F;
+            Settings.ACTION_DUR_FAST = 0.25F;
+            Settings.ACTION_DUR_MED = 0.5F;
+            Settings.ACTION_DUR_LONG = 1.0F;
+            Settings.ACTION_DUR_XLONG = 1.5F;
+        }
+        currentlyFast = !currentlyFast;
+
+
     }
 
     private boolean checkDeckUpdated() {
@@ -164,6 +200,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
     }
 
     private void startNewCombat(){
+        cardsPlayed.clear();
         currentFitnessIndex++;
         if(currentFitnessIndex == population.size()){
             //finished all fitness functions
@@ -187,8 +224,10 @@ public class EvolutionManager implements PostUpdateSubscriber {
             else {
                 //No more combats in the command list -> FINISHED, write to file and end
                 System.out.println("Finished all simulations");
+                Collections.sort(population);
                 writePopulationToFile("NewFitnessFunctions.txt");
                 simRunning = false;
+                toggleFast();
             }
         }
         else {
@@ -317,4 +356,9 @@ public class EvolutionManager implements PostUpdateSubscriber {
         waitingForCombatToSave = true;
         currentFitnessIndex = -1;
     }
+
+    public static void addCardPlayed(AbstractCard c){
+        EvolutionManager.cardsPlayed.add(c);
+    }
+
 }
