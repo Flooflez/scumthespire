@@ -10,52 +10,24 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Queue;
+import java.util.*;
 
-public class CommandAutomator implements PostUpdateSubscriber {
+public class CommandAutomator {
 
     private final static Queue<String> fightCommands = new ArrayDeque<>();
 
-    // Subscribe to BaseMod so it knows to listen to this class
-    public CommandAutomator() {
-        BaseMod.subscribe(this);
-        readFightCommands();
-    }
+    private final static List<String> initCommands = new ArrayList<>();
 
-    // Check for key press
-    @Override
-    public void receivePostUpdate() {
-        //moved to EvolutionManager
-    }
 
     public static void runInitCommands(){
-        runCommandsFromFile("InitCommands.txt");
+        for(String cmd:initCommands){
+            runSilentCommand(cmd);
+        }
     }
 
-    private static void readFightCommands(){
-        File file = new File("FightCommands.txt");
-
-        if (!file.exists()) {
-            System.out.println("Could not find the command file at: " + file.getAbsolutePath());
-            throw new RuntimeException("Missing FightCommands.txt");
-        }
-
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                line = line.trim();
-
-                // Skip empty lines and comments
-                if (line.isEmpty() || line.startsWith("#") || line.startsWith("//")) {
-                    continue;
-                }
-                fightCommands.add(line);
-            }
-
-        } catch (IOException e) {
-            System.out.println("An error occurred while reading the FightCommands file!");
-        }
+    public static void readCommands(){
+        readCommandsFromFile("InitCommands.txt", initCommands);
+        readCommandsFromFile("FightCommands.txt", fightCommands);
     }
 
     public static void restartCurrentFight(){
@@ -72,7 +44,7 @@ public class CommandAutomator implements PostUpdateSubscriber {
     }
 
     // File reader logic
-    public static void runCommandsFromFile(String fileName) {
+    public static void readCommandsFromFile(String fileName, Collection<String> collection) {
         File file = new File(fileName);
 
         if (!file.exists()) {
@@ -81,6 +53,7 @@ public class CommandAutomator implements PostUpdateSubscriber {
         }
 
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            collection.clear();
             String line;
             System.out.println("--- Starting Batch Commands from " + fileName + " ---");
 
@@ -93,7 +66,7 @@ public class CommandAutomator implements PostUpdateSubscriber {
                 }
 
                 System.out.println("Executing: " + line);
-                runSilentCommand(line);
+                collection.add(line);
             }
 
             System.out.println("--- Finished Batch Commands ---");

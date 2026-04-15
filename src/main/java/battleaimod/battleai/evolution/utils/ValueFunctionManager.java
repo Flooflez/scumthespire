@@ -8,6 +8,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ValueFunctionManager {
+
+    //IMPORTANT: DO NOT CHANGE THE ORDER OF THESE
+    //PLEASE APPEND NEW VARIABLES ONLY TO THE END
     public enum Variables{
         SUM_DAMAGE_DEALT,
         DAMAGE_RECEIVED,
