@@ -6,7 +6,8 @@ import battleaimod.battleai.data.CardAction;
 import battleaimod.battleai.data.CardSequence;
 import battleaimod.battleai.data.dummycommands.*;
 import battleaimod.battleai.evolution.utils.ValueFunctionManager;
-import battleaimod.battleai.evolution.utils.WeightedSumFitness;
+import battleaimod.battleai.evolution.utils.fitness.AbstractFitness;
+import battleaimod.battleai.evolution.utils.fitness.WeightedSumFitness;
 import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
@@ -20,7 +21,6 @@ import savestate.SaveState;
 import savestate.SaveStateMod;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -69,7 +69,7 @@ public class BattleAiController implements Controller {
     private boolean lastCmdEnd = false;
     private boolean currSequenceValid = true;
     private int cardsPlayed = 0;
-    private WeightedSumFitness currentFitness;
+    private AbstractFitness currentFitness;
 
     private int currentGeneration = 0;
     private final int GENERATIONS = 10;

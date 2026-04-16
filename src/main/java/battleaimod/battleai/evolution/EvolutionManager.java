@@ -1,8 +1,8 @@
 package battleaimod.battleai.evolution;
 
 import basemod.interfaces.PostUpdateSubscriber;
-import battleaimod.BattleAiMod;
-import battleaimod.battleai.evolution.utils.WeightedSumFitness;
+import battleaimod.battleai.evolution.utils.fitness.AbstractFitness;
+import battleaimod.battleai.evolution.utils.fitness.WeightedSumFitness;
 import battleaimod.utils.CommandAutomator;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -12,20 +12,19 @@ import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
-import ludicrousspeed.LudicrousSpeedMod;
 import savestate.SaveState;
-import savestate.SaveStateMod;
 
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class EvolutionManager implements PostUpdateSubscriber {
     private boolean simRunning = false;
     public static boolean canRunAutoBattler = false;
     private static final Random rand = new Random();
-    private List<WeightedSumFitness> population = new ArrayList<>();
+    private List<AbstractFitness> population = new ArrayList<>();
     private int currentFitnessIndex;
 
     private final int MIN_POPULATION = 10;
@@ -238,8 +237,17 @@ public class EvolutionManager implements PostUpdateSubscriber {
     }
 
     private void evolvePopulation() {
+
+    }
+
+    private void evolveWeightedSum(){
+        List<WeightedSumFitness> population = this.population.stream()
+                .filter(f -> f instanceof WeightedSumFitness)
+                .map(f -> (WeightedSumFitness) f)
+                .collect(Collectors.toList());
+
         // Assume population is already sorted by fitness (best first)
-        List<WeightedSumFitness> newPopulation = new ArrayList<>();
+        List<AbstractFitness> newPopulation = new ArrayList<>();
 
         // 1. Elitism (copy top ELITES without mutation)
         for (int i = 0; i < ELITES && i < population.size(); i++) {
@@ -265,7 +273,11 @@ public class EvolutionManager implements PostUpdateSubscriber {
         }
 
         // 3. Replace old population
-        population = newPopulation;
+        this.population = newPopulation;
+    }
+
+    private void evolveExpressionTree(){
+
     }
 
     private void writeFitnessFunction() {
