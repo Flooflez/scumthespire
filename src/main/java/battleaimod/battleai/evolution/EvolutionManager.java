@@ -2,6 +2,7 @@ package battleaimod.battleai.evolution;
 
 import basemod.interfaces.PostUpdateSubscriber;
 import battleaimod.battleai.evolution.utils.fitness.AbstractFitness;
+import battleaimod.battleai.evolution.utils.fitness.CompatExpression;
 import battleaimod.battleai.evolution.utils.fitness.WeightedSumFitness;
 import battleaimod.utils.CommandAutomator;
 import com.badlogic.gdx.Gdx;
@@ -46,6 +47,13 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private final boolean ALLOW_FAST_MODE = true;
     private boolean currentlyFast = false;
 
+
+    private enum FitnessType{
+        WEIGHTED_SUM,
+        EXPRESSION_TREE;
+    }
+
+    private FitnessType fitnessType;
 
     //TODO: check if server client both using savestates is gonna explode everything
 
@@ -237,7 +245,14 @@ public class EvolutionManager implements PostUpdateSubscriber {
     }
 
     private void evolvePopulation() {
-
+        switch (fitnessType){
+            case EXPRESSION_TREE:
+                evolveExpressionTree();
+                break;
+            case WEIGHTED_SUM:
+                evolveWeightedSum();
+                break;
+        }
     }
 
     private void evolveWeightedSum(){
@@ -276,14 +291,95 @@ public class EvolutionManager implements PostUpdateSubscriber {
         this.population = newPopulation;
     }
 
-    private void evolveExpressionTree(){
+    private void evolveExpressionTree() {
 
+        File outFile = new File("ExpressionOut.txt");
+        File inFile = new File("ExpressionIn.txt");
+
+        // ----------------------------
+        // 1. WRITE POPULATION TO FILE
+        // ----------------------------
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
+
+            writer.write("READY");
+            writer.newLine();
+
+            for (AbstractFitness individual : population) {
+
+                writer.write("FITNESS=" + individual.getFitnessFitness());
+                writer.newLine();
+
+                writer.write(individual.toString());
+                writer.newLine();
+            }
+
+            writer.flush();
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to write population for evolution", e);
+        }
+
+        // ----------------------------
+        // 2. WAIT FOR JENETICS RESPONSE
+        // ----------------------------
+
+        while (true) {
+            if (inFile.exists()) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(inFile))) {
+
+                    String header = reader.readLine();
+
+                    if ("READY".equals(header)) {
+
+                        List<AbstractFitness> newPopulation = new ArrayList<>();
+
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+
+                            line = line.trim();
+                            if (line.isEmpty()) continue;
+
+                            // Expect FITNESS=...
+                            if (!line.startsWith("FITNESS=")) continue;
+
+                            double fitness = Double.parseDouble(line.substring(9));
+
+                            String expr = reader.readLine();
+                            if (expr == null) break;
+
+                            CompatExpression individual = new CompatExpression(expr);
+                            individual.setFitnessFitness(fitness); // assuming setter exists
+
+                            newPopulation.add(individual);
+                        }
+
+                        // Replace population
+                        population.clear();
+                        population.addAll(newPopulation);
+
+                        break;
+                    }
+
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to read evolved population", e);
+                }
+            }
+
+            // avoid busy-wait CPU burn
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
     }
 
     private void writeFitnessFunction() {
-        //TODO: for now, we send fitness by file which is dumb but idk networking
-        WeightedSumFitness current = population.get(currentFitnessIndex);
+        AbstractFitness current = population.get(currentFitnessIndex);
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get("CurrentFitnessValues.txt"))) {
+            writer.write(fitnessType.name());
+            writer.newLine();
             writer.write(current.toString());
             writer.newLine();
         } catch (IOException e) {
@@ -307,35 +403,69 @@ public class EvolutionManager implements PostUpdateSubscriber {
         }
 
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
 
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
+            String header = reader.readLine();
 
-                // Skip empty lines
-                if (line.isEmpty()) continue;
+            if (header == null) {
+                System.out.println("Empty population file.");
+                return;
+            }
 
-                population.add(new WeightedSumFitness(line));
+            switch (header.trim()) {
+
+                case "WEIGHTED_SUM":
+                    fitnessType = FitnessType.WEIGHTED_SUM;
+                    readWeightedSumPopulation(reader);
+                    break;
+
+                case "EXPRESSION_TREE":
+                    fitnessType = FitnessType.EXPRESSION_TREE;
+                    readExpressionTreePopulation(reader);
+                    break;
+
+                default:
+                    System.out.println("Unknown population type: " + header);
             }
 
         } catch (IOException e) {
-            throw new RuntimeException("Failed to read population file: " + fileName, e);
+            e.printStackTrace();
+        }
+    }
+
+    private void readWeightedSumPopulation(BufferedReader reader) throws IOException {
+        String line;
+        while ((line = reader.readLine()) != null) {
+            line = line.trim();
+
+            // Skip empty lines
+            if (line.isEmpty()) continue;
+
+            population.add(new WeightedSumFitness(line));
         }
 
         // Pad population if too small
         while (population.size() < MIN_POPULATION) {
-            // Pick a random parent from existing population
-            WeightedSumFitness parent = population.get(rand.nextInt(population.size()));
-
-            // Mutated copy
+            WeightedSumFitness parent = (WeightedSumFitness) population.get(rand.nextInt(population.size()));
             population.add(new WeightedSumFitness(parent, true));
+        }
+    }
+
+    private void readExpressionTreePopulation(BufferedReader reader) throws IOException {
+        String line;
+        while ((line = reader.readLine()) != null) {
+            line = line.trim();
+
+            // Skip empty lines
+            if (line.isEmpty()) continue;
+
+            population.add(new CompatExpression(line));
         }
     }
 
     private void writePopulationToFile(String fileName) {
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(fileName))) {
 
-            for (WeightedSumFitness individual : population) {
+            for (AbstractFitness individual : population) {
                 writer.write(individual.toString());
                 writer.newLine();
             }
