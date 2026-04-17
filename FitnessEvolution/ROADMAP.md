@@ -11,7 +11,7 @@ two flat text files in `ipc/`.
 | Stack | Java 17 + Jenetics 7.2.0 (`io.jenetics.prog`) |
 | Location | `FinalProject/scumthespire/FitnessEvolution/` |
 | Branch | `2-level-GP-Jenetics` (fork: RArgu/scumthespire) |
-| Operators | `+`, `-`, `*`, protected `/` (`div(a,0)=1.0`) |
+| Operators | `+`, `-`, `*`, `/` (`MathOp.DIV`, unprotected) |
 | Constants | `EphemeralConst` in `[-5.0, 5.0]` |
 | Max tree depth | 7 |
 | Population size | read from ModOutput.txt (dummy default 20) |
@@ -20,7 +20,7 @@ two flat text files in `ipc/`.
 | Offspring rates | Jenetics defaults (crossover 0.7, mutation 0.1) |
 | Init | 1 × `init_template.txt` + 19 × ramped half-and-half |
 | IPC | overwrite, READY flag, 1s poll, `END` stops run |
-| Invalid handling | protected division; no rejection |
+| Invalid handling | unprotected; mod assigns fitness 0 for non-finite evaluations |
 | Logging | human-readable `logs/evolution_log.txt` |
 
 ## Algorithm (per generation)
@@ -67,15 +67,13 @@ FITNESS=<double>
 - [x] `logs/` directory
 - [x] `.gitignore` for `target/`, IDE files
 - [x] ROADMAP.md (this file)
-- [ ] Commit on `2-level-GP-Jenetics`
+- [x] Commit on `2-level-GP-Jenetics` (da54106)
 
 ### Phase 1 — Core GP primitives
-- [ ] `FeatureBankLoader` — parse FeatureBank.txt → ordered feature list
-- [ ] `ProtectedDiv` — custom `Op<Double>` returning 1.0 on |b| < eps
-- [ ] `OpSet` — static registry of `+, -, *, protectedDiv` + ephemeral const
-- [ ] `MathExprIO` — parse init_template.txt to `TreeNode<Op<Double>>`;
-      serialize any tree via `MathExpr.toString()`
-- [ ] Unit tests: protected div, MathExpr round-trip, FeatureBank parse
+- [x] `FeatureBankLoader` — parse FeatureBank.txt → ordered `List<String>` and `ISeq<Var<Double>>`
+- [x] `OpSet` — `MathOp.{ADD,SUB,MUL,DIV}` + ephemeral const in `[-5, 5]`
+- [x] `MathExprIO` — parse init_template.txt via `MathExpr.parse`; serialize via `MathExpr#toString`
+- [x] Unit tests: FeatureBank parse (3), MathExpr round-trip (3), OpSet shape (3) — all green
 
 ### Phase 2 — Evolution engine (mocked input)
 - [ ] `Population.initial(templatePath, featureBank, size)` — 1 template + (size-1) ramped H&H
