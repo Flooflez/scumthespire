@@ -1,6 +1,7 @@
 package battleaimod.battleai.evolution;
 
 import basemod.interfaces.PostUpdateSubscriber;
+import battleaimod.battleai.evolution.utils.ValueFunctionManager;
 import battleaimod.battleai.evolution.utils.fitness.AbstractFitness;
 import battleaimod.battleai.evolution.utils.fitness.CompatExpression;
 import battleaimod.battleai.evolution.utils.fitness.WeightedSumFitness;
@@ -137,6 +138,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
         CommandAutomator.runInitCommands();
         startingDeck = new ArrayList<>(AbstractDungeon.player.masterDeck.group);
         waitingForDeckUpdate = true;
+
+        ValueFunctionManager.writeVariablesToFile("VariableNames.txt");
 
         toggleFast();
     }

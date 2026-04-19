@@ -79,7 +79,7 @@ public class WeightedSumFitness extends AbstractFitness implements Comparable<Ab
             oldWeight += rand.nextGaussian() * 0.05;
         }
 
-        // 🔥 Snap-to-zero logic
+        // Snap-to-zero logic
         double epsilon = 1e-3;       // "close to zero" threshold
         double zeroChance = 0.3;     // probability of snapping
 
