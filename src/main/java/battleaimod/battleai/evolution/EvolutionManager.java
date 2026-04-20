@@ -56,8 +56,6 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     private FitnessType fitnessType;
 
-    //TODO: check if server client both using savestates is gonna explode everything
-
     @Override
     public void receivePostUpdate() {
         if (!simRunning && Gdx.input.isKeyJustPressed(Input.Keys.H)) {
@@ -139,7 +137,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
         startingDeck = new ArrayList<>(AbstractDungeon.player.masterDeck.group);
         waitingForDeckUpdate = true;
 
-        ValueFunctionManager.writeVariablesToFile("VariableNames.txt");
+        ValueFunctionManager.writeVariablesToFile("ipc/FeatureBank.txt");
 
         toggleFast();
     }
@@ -296,8 +294,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     private void evolveExpressionTree() {
 
-        File outFile = new File("ExpressionOut.txt");
-        File inFile = new File("ExpressionIn.txt");
+        File outFile = new File("ipc/ModOutput.txt");
+        File inFile = new File("ipc/JeneticsOutput.txt");
 
         // ----------------------------
         // 1. WRITE POPULATION TO FILE
@@ -351,7 +349,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
                             if (expr == null) break;
 
                             CompatExpression individual = new CompatExpression(expr);
-                            individual.setFitnessFitness(fitness); // assuming setter exists
+                            individual.setFitnessFitness(fitness);
 
                             newPopulation.add(individual);
                         }
@@ -359,6 +357,14 @@ public class EvolutionManager implements PostUpdateSubscriber {
                         // Replace population
                         population.clear();
                         population.addAll(newPopulation);
+
+                        // ----------------------------
+                        // 3. CLEAR INPUT FILE
+                        // ----------------------------
+                        try (BufferedWriter clearWriter = new BufferedWriter(new FileWriter(inFile, false))) {
+                            // overwrite with empty content
+                            clearWriter.write("");
+                        }
 
                         break;
                     }

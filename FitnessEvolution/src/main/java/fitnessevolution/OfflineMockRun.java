@@ -37,8 +37,8 @@ public final class OfflineMockRun {
     public static void main(String[] args) throws Exception {
         RandomRegistry.random(new Random(SEED));
 
-        Path featureBank = Path.of("ipc/FeatureBank.txt");
-        Path template = Path.of("ipc/init_template.txt");
+        Path featureBank = Config.featureBank();
+        Path template = Config.initTemplate();
 
         ISeq<Var<Double>> vars = FeatureBankLoader.loadVars(featureBank);
         ISeq<Op<Double>> terminals = OpSet.terminals(vars);

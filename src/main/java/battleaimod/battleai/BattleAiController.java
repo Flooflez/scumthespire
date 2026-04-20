@@ -7,6 +7,7 @@ import battleaimod.battleai.data.CardSequence;
 import battleaimod.battleai.data.dummycommands.*;
 import battleaimod.battleai.evolution.utils.ValueFunctionManager;
 import battleaimod.battleai.evolution.utils.fitness.AbstractFitness;
+import battleaimod.battleai.evolution.utils.fitness.CompatExpression;
 import battleaimod.battleai.evolution.utils.fitness.WeightedSumFitness;
 import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
@@ -204,13 +205,31 @@ public class BattleAiController implements Controller {
 
     private void loadFitness() {
         try (BufferedReader reader = Files.newBufferedReader(Paths.get("CurrentFitnessValues.txt"))) {
-            String line = reader.readLine();
 
-            if (line == null || line.trim().isEmpty()) {
+            String typeLine = reader.readLine();
+
+            if (typeLine == null || typeLine.trim().isEmpty()) {
                 return;
             }
 
-            currentFitness = new WeightedSumFitness(line.trim());
+            String dataLine = reader.readLine();
+            if (dataLine == null || dataLine.trim().isEmpty()) {
+                return;
+            }
+
+            String type = typeLine.trim();
+            String data = dataLine.trim();
+
+            switch (type) {
+                case "WEIGHTED_SUM":
+                    currentFitness = new WeightedSumFitness(data);
+                    break;
+                case "EXPRESSION_TREE":
+                    currentFitness = new CompatExpression(data);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown fitness type: " + type);
+            }
 
         } catch (IOException e) {
             throw new RuntimeException("Failed to load fitness file", e);
