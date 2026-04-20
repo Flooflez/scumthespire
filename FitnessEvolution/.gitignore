@@ -6,7 +6,7 @@ target/
 .DS_Store
 logs/*.txt
 !logs/.gitkeep
-state/
+runs/
 
 # Runtime IPC artifacts — created on each run by Main (JeneticsOutput.txt)
 # and by the mod (ModOutput.txt). Not meant to be shared across machines.

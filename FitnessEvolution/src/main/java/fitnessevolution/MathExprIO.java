@@ -16,7 +16,12 @@ public final class MathExprIO {
     private MathExprIO() {}
 
     public static TreeNode<Op<Double>> parseTemplate(Path path) throws IOException {
-        return TreeNode.ofTree(MathExpr.parse(Files.readString(path).trim()).tree());
+        return parseExpression(Files.readString(path).trim());
+    }
+
+    /** Parse a MathExpr string into a mutable {@link TreeNode}. */
+    public static TreeNode<Op<Double>> parseExpression(String expression) {
+        return TreeNode.ofTree(MathExpr.parse(expression).tree());
     }
 
     /**

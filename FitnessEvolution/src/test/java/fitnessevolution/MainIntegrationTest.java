@@ -7,18 +7,20 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * End-to-end test: drive the {@link Main} CLI in-process through a multi-
- * generation cycle, writing ModOutput.txt between invocations to simulate
- * the teammate's mod.
+ * End-to-end tests of the generation-agnostic {@link Main} CLI, run
+ * in-process against a tempdir-sandboxed Config.
  */
 class MainIntegrationTest {
+
+    private static final String TEMPLATE_EXPR =
+        "SUM_DAMAGE_DEALT - 2.0*DAMAGE_RECEIVED - MONSTERS_REMAINING "
+            + "- 0.1*SUM_MONSTER_HEALTH + POWERS_PLAYED";
 
     @AfterEach
     void restoreConfig() {
@@ -26,83 +28,116 @@ class MainIntegrationTest {
     }
 
     @Test
-    void threeGenerationCycle(@TempDir Path tmp) throws IOException {
+    void warmupFillsToPopulationSize(@TempDir Path tmp) throws IOException {
         seedWorkdir(tmp);
         Config.configure(tmp);
 
-        // --- Gen 0: no state file → bootstrap ---
-        Main.main(new String[0]);
-        Path jenOut = tmp.resolve("ipc/JeneticsOutput.txt");
-        Path stateFile = tmp.resolve("state/evolution_state.txt");
-        assertTrue(Files.exists(jenOut), "JeneticsOutput.txt should exist after gen 0");
-        assertTrue(Files.exists(stateFile), "state file should exist after gen 0");
-        List<String> gen0 = Files.readAllLines(jenOut);
-        assertEquals(Config.POPULATION_SIZE, gen0.size());
+        // Mod seeds ModOutput with just the template (K=1 < POP=20).
+        Files.writeString(
+            tmp.resolve("ipc/ModOutput.txt"),
+            "FITNESS=0\n" + TEMPLATE_EXPR + "\n");
 
-        EvolutionState s0 = EvolutionState.load(stateFile);
-        assertEquals(0, s0.generation());
+        Main.main(new String[]{"--run-id=test"});
 
-        // --- Gen 1 ---
-        writeMockModOutput(tmp, gen0);
-        Main.main(new String[0]);
-        List<String> gen1 = Files.readAllLines(jenOut);
-        assertEquals(Config.POPULATION_SIZE, gen1.size());
-        assertEquals(1, EvolutionState.load(stateFile).generation());
+        Path out = tmp.resolve("ipc/JeneticsOutput.txt");
+        assertTrue(Files.exists(out));
+        List<String> lines = Files.readAllLines(out);
+        assertEquals(Config.POPULATION_SIZE, lines.size(),
+            "warmup should pad to POPULATION_SIZE");
+        // First line should preserve (canonicalised) template.
+        assertTrue(lines.get(0).contains("SUM_DAMAGE_DEALT"),
+            "first output line should carry the template we seeded");
 
-        // --- Gen 2 ---
-        writeMockModOutput(tmp, gen1);
-        Main.main(new String[0]);
-        List<String> gen2 = Files.readAllLines(jenOut);
-        assertEquals(Config.POPULATION_SIZE, gen2.size());
-        assertEquals(2, EvolutionState.load(stateFile).generation());
-
-        // Log file should have grown each generation
-        Path log = tmp.resolve("logs/evolution_log.txt");
-        assertTrue(Files.exists(log));
-        List<String> logLines = Files.readAllLines(log);
-        assertTrue(logLines.size() >= 3, "expected at least 3 log lines, got " + logLines.size());
+        // Step counter advanced from 0 → 1
+        Path stepFile = tmp.resolve("runs/test.step");
+        assertTrue(Files.exists(stepFile));
+        assertEquals(1, Integer.parseInt(Files.readString(stepFile).trim()));
     }
 
     @Test
-    void endSentinelStopsRun(@TempDir Path tmp) throws IOException {
+    void evolveStepWhenKEqualsPop(@TempDir Path tmp) throws IOException {
         seedWorkdir(tmp);
         Config.configure(tmp);
-        Main.main(new String[0]); // gen 0
+
+        // First call: warmup to produce a full population in JeneticsOutput.
+        Files.writeString(
+            tmp.resolve("ipc/ModOutput.txt"),
+            "FITNESS=0\n" + TEMPLATE_EXPR + "\n");
+        Main.main(new String[]{"--run-id=evo"});
+
+        List<String> pop0 = Files.readAllLines(tmp.resolve("ipc/JeneticsOutput.txt"));
+        assertEquals(Config.POPULATION_SIZE, pop0.size());
+
+        // Mod writes back fitness for all 20 → we evolve.
+        writeFullModOutput(tmp, pop0);
+        Main.main(new String[]{"--run-id=evo"});
+
+        List<String> pop1 = Files.readAllLines(tmp.resolve("ipc/JeneticsOutput.txt"));
+        assertEquals(Config.POPULATION_SIZE, pop1.size());
+        assertEquals(2, Integer.parseInt(
+            Files.readString(tmp.resolve("runs/evo.step")).trim()));
+    }
+
+    @Test
+    void endSentinelStopsWithoutAdvancingStep(@TempDir Path tmp) throws IOException {
+        seedWorkdir(tmp);
+        Config.configure(tmp);
+        // Prime with one warmup step so the counter is at 1.
+        Files.writeString(
+            tmp.resolve("ipc/ModOutput.txt"),
+            "FITNESS=0\n" + TEMPLATE_EXPR + "\n");
+        Main.main(new String[]{"--run-id=stop"});
+        assertEquals(1, Integer.parseInt(
+            Files.readString(tmp.resolve("runs/stop.step")).trim()));
 
         Files.writeString(tmp.resolve("ipc/ModOutput.txt"), "END\n");
-        Main.main(new String[0]);
+        Main.main(new String[]{"--run-id=stop"});
 
-        // state should still be at generation 0 — we did not step
-        EvolutionState s = EvolutionState.load(tmp.resolve("state/evolution_state.txt"));
-        assertEquals(0, s.generation());
+        // Step counter unchanged by END
+        assertEquals(1, Integer.parseInt(
+            Files.readString(tmp.resolve("runs/stop.step")).trim()));
     }
 
     @Test
-    void mismatchedExpressionFailsWithClearMessage(@TempDir Path tmp) throws IOException {
+    void truncatesWhenKExceedsPopulationSize(@TempDir Path tmp) throws IOException {
         seedWorkdir(tmp);
         Config.configure(tmp);
-        Main.main(new String[0]); // gen 0
 
-        List<String> gen0 = Files.readAllLines(tmp.resolve("ipc/JeneticsOutput.txt"));
-        // Corrupt the first echoed expression
+        // 25 identical expressions with varying fitness
         StringBuilder mod = new StringBuilder();
-        for (int i = 0; i < gen0.size(); i++) {
-            mod.append("FITNESS=").append(1.0).append('\n');
-            mod.append(i == 0 ? "TOTALLY_WRONG_VAR" : gen0.get(i)).append('\n');
+        for (int i = 0; i < 25; i++) {
+            mod.append("FITNESS=").append(i).append('\n')
+               .append(TEMPLATE_EXPR).append('\n');
         }
         Files.writeString(tmp.resolve("ipc/ModOutput.txt"), mod.toString());
 
-        // matchResultsToState throws IllegalArgumentException, which Main converts
-        // to System.exit(2) — but we can call matchResultsToState via another
-        // path: invoking Main.main directly would call System.exit. Instead we
-        // verify the exception bubbles through EvolutionState + JeneticsIO by
-        // using the internal APIs.
-        EvolutionState s = EvolutionState.load(tmp.resolve("state/evolution_state.txt"));
-        List<JeneticsIO.ModResult> results = JeneticsIO.readModOutput(
-            tmp.resolve("ipc/ModOutput.txt"));
-        assertNotNull(results);
-        // Sanity: first echoed expr doesn't match state
-        assertNotEquals(s.expressions().get(0), results.get(0).expression());
+        Main.main(new String[]{"--run-id=big"});
+
+        // Truncated → evolve path ran → POPULATION_SIZE output lines
+        List<String> out = Files.readAllLines(tmp.resolve("ipc/JeneticsOutput.txt"));
+        assertEquals(Config.POPULATION_SIZE, out.size());
+    }
+
+    @Test
+    void separateRunIdsMaintainSeparateCounters(@TempDir Path tmp) throws IOException {
+        seedWorkdir(tmp);
+        Config.configure(tmp);
+
+        Files.writeString(
+            tmp.resolve("ipc/ModOutput.txt"),
+            "FITNESS=0\n" + TEMPLATE_EXPR + "\n");
+        Main.main(new String[]{"--run-id=runA"});
+        Main.main(new String[]{"--run-id=runA"});
+
+        Files.writeString(
+            tmp.resolve("ipc/ModOutput.txt"),
+            "FITNESS=0\n" + TEMPLATE_EXPR + "\n");
+        Main.main(new String[]{"--run-id=runB"});
+
+        assertEquals(2, Integer.parseInt(
+            Files.readString(tmp.resolve("runs/runA.step")).trim()));
+        assertEquals(1, Integer.parseInt(
+            Files.readString(tmp.resolve("runs/runB.step")).trim()));
     }
 
     // ---- helpers ------------------------------------------------------------
@@ -111,21 +146,15 @@ class MainIntegrationTest {
         Path ipc = tmp.resolve("ipc");
         Files.createDirectories(ipc);
         Files.copy(Path.of("ipc/FeatureBank.txt"), ipc.resolve("FeatureBank.txt"));
-        Files.copy(Path.of("ipc/init_template.txt"), ipc.resolve("init_template.txt"));
     }
 
-    /**
-     * Write a ModOutput.txt that echoes every expression from {@code exprs}
-     * back with a synthetic fitness (random, seed-fixed) so matchResultsToState
-     * is happy.
-     */
-    private static void writeMockModOutput(Path tmp, List<String> exprs) throws IOException {
+    private static void writeFullModOutput(Path tmp, List<String> exprs) throws IOException {
         Random rng = new Random(1);
-        List<String> lines = new ArrayList<>(exprs.size() * 2);
+        StringBuilder mod = new StringBuilder();
         for (String e : exprs) {
-            lines.add("FITNESS=" + (rng.nextDouble() * 10 - 5));
-            lines.add(e);
+            mod.append("FITNESS=").append(rng.nextDouble() * 10 - 5).append('\n')
+               .append(e).append('\n');
         }
-        Files.writeString(tmp.resolve("ipc/ModOutput.txt"), String.join("\n", lines) + "\n");
+        Files.writeString(tmp.resolve("ipc/ModOutput.txt"), mod.toString());
     }
 }
