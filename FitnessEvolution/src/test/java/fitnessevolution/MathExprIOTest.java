@@ -14,8 +14,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class MathExprIOTest {
 
     @Test
-    void parsesRealInitTemplate() throws IOException {
-        Tree<Op<Double>, ?> tree = MathExprIO.parseTemplate(Path.of("ipc/init_template.txt"));
+    void parsesFeatureBankTemplate() {
+        String expr = "SUM_DAMAGE_DEALT - 2.0*DAMAGE_RECEIVED - MONSTERS_REMAINING "
+            + "- 0.1*SUM_MONSTER_HEALTH + POWERS_PLAYED";
+        Tree<Op<Double>, ?> tree = MathExprIO.parseExpression(expr);
         String serialized = MathExprIO.serialize(tree);
         assertTrue(serialized.contains("SUM_DAMAGE_DEALT"));
         assertTrue(serialized.contains("DAMAGE_RECEIVED"));

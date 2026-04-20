@@ -72,7 +72,18 @@ public final class GPEngine {
         TreeNode<Op<Double>> normalized = normalizeVars(template, canonicalVars);
         pop.add(Genotype.of(ProgramChromosome.of(normalized, operations, terminals)));
 
-        for (int i = 1; i < populationSize; i++) {
+        pop.addAll(randomTrees(populationSize - 1));
+        return pop;
+    }
+
+    /**
+     * Generate {@code count} random individuals at ramped depths in
+     * {@code [2, maxDepth]}. Used by {@link Main} to fill a partial ModOutput
+     * up to the configured population size.
+     */
+    public List<Genotype<ProgramGene<Double>>> randomTrees(int count) {
+        List<Genotype<ProgramGene<Double>>> pop = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
             int depth = 2 + (i % Math.max(1, maxDepth - 1));
             pop.add(Genotype.of(ProgramChromosome.of(depth, operations, terminals)));
         }

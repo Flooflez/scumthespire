@@ -25,12 +25,16 @@ class JeneticsIOTest {
     private ISeq<Op<Double>> terminals;
     private TreeNode<Op<Double>> template;
 
+    private static final String TEMPLATE_EXPR =
+        "SUM_DAMAGE_DEALT - 2.0*DAMAGE_RECEIVED - MONSTERS_REMAINING "
+            + "- 0.1*SUM_MONSTER_HEALTH + POWERS_PLAYED";
+
     @BeforeEach
     void setUp() throws IOException {
         RandomRegistry.random(new Random(11));
         vars = FeatureBankLoader.loadVars(Path.of("ipc/FeatureBank.txt"));
         terminals = OpSet.terminals(vars);
-        template = MathExprIO.parseTemplate(Path.of("ipc/init_template.txt"));
+        template = MathExprIO.parseExpression(TEMPLATE_EXPR);
     }
 
     @Test

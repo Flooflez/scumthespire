@@ -18,6 +18,7 @@ public final class Config {
     public static final int POPULATION_SIZE = 20;
     public static final int MAX_DEPTH = 7;
     public static final long DEFAULT_SEED = 42L;
+    public static final String DEFAULT_RUN_ID = "default";
 
     /** First non-whitespace line of ModOutput.txt = this → we exit cleanly. */
     public static final String END_SENTINEL = "END";
@@ -38,12 +39,13 @@ public final class Config {
     }
 
     public static Path ipcDir()            { return baseDir.resolve("ipc"); }
-    public static Path stateDir()          { return baseDir.resolve("state"); }
+    public static Path runsDir()           { return baseDir.resolve("runs"); }
     public static Path logsDir()           { return baseDir.resolve("logs"); }
     public static Path featureBank()       { return ipcDir().resolve("FeatureBank.txt"); }
-    public static Path initTemplate()      { return ipcDir().resolve("init_template.txt"); }
     public static Path jeneticsOutput()    { return ipcDir().resolve("JeneticsOutput.txt"); }
     public static Path modOutput()         { return ipcDir().resolve("ModOutput.txt"); }
-    public static Path stateFile()         { return stateDir().resolve("evolution_state.txt"); }
+    public static Path runStepFile(String runId) {
+        return runsDir().resolve(runId + ".step");
+    }
     public static Path evolutionLog()      { return logsDir().resolve("evolution_log.txt"); }
 }

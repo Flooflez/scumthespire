@@ -34,15 +34,18 @@ public final class OfflineMockRun {
     private static final long SEED = 42L;
     private static final int TOP_K_DISPLAY = 5;
 
+    private static final String TEMPLATE_EXPR =
+        "SUM_DAMAGE_DEALT - 2.0*DAMAGE_RECEIVED - MONSTERS_REMAINING "
+            + "- 0.1*SUM_MONSTER_HEALTH + POWERS_PLAYED";
+
     public static void main(String[] args) throws Exception {
         RandomRegistry.random(new Random(SEED));
 
-        Path featureBank = Config.featureBank();
-        Path template = Config.initTemplate();
+        Path featureBank = Path.of("ipc/FeatureBank.txt");
 
         ISeq<Var<Double>> vars = FeatureBankLoader.loadVars(featureBank);
         ISeq<Op<Double>> terminals = OpSet.terminals(vars);
-        TreeNode<Op<Double>> templateTree = MathExprIO.parseTemplate(template);
+        TreeNode<Op<Double>> templateTree = MathExprIO.parseExpression(TEMPLATE_EXPR);
 
         GPEngine engine = new GPEngine(
             OpSet.OPS, terminals, MAX_DEPTH, POPULATION, SEED);
