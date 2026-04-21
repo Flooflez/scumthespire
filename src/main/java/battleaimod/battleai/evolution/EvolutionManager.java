@@ -243,6 +243,9 @@ public class EvolutionManager implements PostUpdateSubscriber {
             writeFitnessFunction();
             restartFight();
         }
+
+        //TODO: test if actions that trigger after death still trigger on next run
+        AbstractDungeon.actionManager.actions.clear();
     }
 
     private void evolvePopulation() {
