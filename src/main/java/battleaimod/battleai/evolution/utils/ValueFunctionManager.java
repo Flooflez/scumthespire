@@ -1,11 +1,7 @@
 package battleaimod.battleai.evolution.utils;
 
 import battleaimod.ValueFunctions;
-import battleaimod.battleai.StateNode;
 import com.megacrit.cardcrawl.cards.AbstractCard;
-import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
-import com.megacrit.cardcrawl.monsters.AbstractMonster;
-import com.megacrit.cardcrawl.powers.AbstractPower;
 import savestate.SaveState;
 import savestate.monsters.MonsterState;
 import savestate.powers.PowerState;
@@ -14,7 +10,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,9 +24,16 @@ public class ValueFunctionManager {
         MONSTERS_REMAINING,
         SUM_MONSTER_HEALTH,
         POWERS_PLAYED,
-        SUM_POISON,
-        SUM_WEAK,
-        SUM_VULNERABLE;
+        SUM_ENEMY_POISON,
+        SUM_ENEMY_WEAK,
+        SUM_ENEMY_VULNERABLE,
+        SUM_ENEMY_STRENGTH,
+        SUM_PLAYER_WEAK,
+        SUM_PLAYER_VULNERABLE,
+        SUM_PLAYER_STRENGTH,
+        SUM_PLAYER_DEX,
+        EFFECTIVE_HP,
+        SUM_ORBS,
         ;
     }
 
@@ -40,8 +42,10 @@ public class ValueFunctionManager {
     private static SaveState endState;
     private static List<AbstractCard> cardsPlayed;
 
-    private static final Map<String, Integer> powerTotals = new HashMap<>();
-    private static boolean cacheValid = false;
+    private static final Map<String, Integer> monsterPowerTotals = new HashMap<>();
+    private static boolean monsterCacheValid = false;
+    private static final Map<String, Integer> playerPowerTotals = new HashMap<>();
+    private static boolean playerCacheValid = false;
 
     private static final Map<Variables, Double> valueMap = new HashMap<>();
 
@@ -62,30 +66,36 @@ public class ValueFunctionManager {
         ValueFunctionManager.endState = endState;
         ValueFunctionManager.cardsPlayed = cardsPlayed;
 
-        ValueFunctionManager.valueMap.put(Variables.SUM_DAMAGE_DEALT,
-                (double) ValueFunctionManager.getTotalDamageDealt());
+        ValueFunctionManager.monsterCacheValid = false;
+        ValueFunctionManager.playerCacheValid = false;
 
-        ValueFunctionManager.valueMap.put(Variables.SUM_MONSTER_HEALTH,
-                (double) ValueFunctionManager.getTotalMonsterHealth());
+        addValueToMap(Variables.SUM_DAMAGE_DEALT, getTotalDamageDealt());
 
-        ValueFunctionManager.valueMap.put(Variables.MONSTERS_REMAINING,
-                (double) ValueFunctionManager.getAliveMonsterCount());
+        addValueToMap(Variables.SUM_MONSTER_HEALTH, getTotalMonsterHealth());
 
-        ValueFunctionManager.valueMap.put(Variables.DAMAGE_RECEIVED,
-                (double) ValueFunctionManager.getPlayerDamage());
+        addValueToMap(Variables.MONSTERS_REMAINING, getAliveMonsterCount());
 
-        ValueFunctionManager.valueMap.put(Variables.POWERS_PLAYED,
-                (double) ValueFunctionManager.getNumberPowersPlayed());
+        addValueToMap(Variables.DAMAGE_RECEIVED, getPlayerDamage());
 
-        ValueFunctionManager.valueMap.put(Variables.SUM_POISON,
-                (double) ValueFunctionManager.getPowerTotal("Poison"));
+        addValueToMap(Variables.POWERS_PLAYED, getNumberPowersPlayed());
 
-        ValueFunctionManager.valueMap.put(Variables.SUM_WEAK,
-                (double) ValueFunctionManager.getPowerTotal("Weakened"));
+        addValueToMap(Variables.SUM_ENEMY_POISON, getMonsterPowerTotal("Poison"));
+        addValueToMap(Variables.SUM_ENEMY_WEAK, getMonsterPowerTotal("Weakened"));
+        addValueToMap(Variables.SUM_ENEMY_VULNERABLE, getMonsterPowerTotal("Vulnerable"));
+        addValueToMap(Variables.SUM_ENEMY_STRENGTH, getMonsterPowerTotal("Strength"));
 
-        ValueFunctionManager.valueMap.put(Variables.SUM_VULNERABLE,
-                (double) ValueFunctionManager.getPowerTotal("Vulnerable"));
+        addValueToMap(Variables.SUM_PLAYER_WEAK, getPlayerPowerTotal("Weakened"));
+        addValueToMap(Variables.SUM_PLAYER_VULNERABLE, getPlayerPowerTotal("Vulnerable"));
+        addValueToMap(Variables.SUM_PLAYER_STRENGTH, getPlayerPowerTotal("Strength"));
+        addValueToMap(Variables.SUM_PLAYER_DEX, getPlayerPowerTotal("Dexterity"));
 
+        addValueToMap(Variables.EFFECTIVE_HP, getPlayerEffectiveHP());
+        addValueToMap(Variables.SUM_ORBS, getSumOrbs());
+
+    }
+
+    private static void addValueToMap(Variables v, double d){
+        ValueFunctionManager.valueMap.put(v, d);
     }
 
     /**
@@ -150,27 +160,58 @@ public class ValueFunctionManager {
 
 
 
+    private static void computePlayerPowerTotals() {
+        playerPowerTotals.clear();
+
+        for (PowerState p : endState.playerState.powers) {
+            playerPowerTotals.merge(p.powerId, p.amount, Integer::sum);
+        }
+
+        playerCacheValid = true;
+    }
+
+    public static int getPlayerPowerTotal(String powerId) {
+        if (!playerCacheValid) computePlayerPowerTotals();
+        return playerPowerTotals.getOrDefault(powerId, 0);
+    }
+
     private static void computeMonsterPowerTotals() {
-        powerTotals.clear();
+        monsterPowerTotals.clear();
 
         if (endState == null ||
                 endState.curMapNodeState == null ||
                 endState.curMapNodeState.monsterData == null) {
-            cacheValid = true;
+            monsterCacheValid = true;
             return;
         }
 
         for (MonsterState m : endState.curMapNodeState.monsterData) {
             for (PowerState p : m.powers) {
-                powerTotals.merge(p.powerId, p.amount, Integer::sum);
+                monsterPowerTotals.merge(p.powerId, p.amount, Integer::sum);
             }
         }
 
-        cacheValid = true;
+        monsterCacheValid = true;
     }
 
-    public static int getPowerTotal(String powerId) {
-        if (!cacheValid) computeMonsterPowerTotals();
-        return powerTotals.getOrDefault(powerId, 0);
+    public static int getMonsterPowerTotal(String powerId) {
+        if (!monsterCacheValid) computeMonsterPowerTotals();
+        return monsterPowerTotals.getOrDefault(powerId, 0);
+    }
+
+    public static int getPlayerEffectiveHP(){
+        boolean barricade = false;
+        for(PowerState p : endState.playerState.powers){
+            if(p.powerId.equals("Barricade")){
+                barricade = true;
+                break;
+            }
+        }
+
+        return endState.playerState.getCurrentHealth() + (barricade ? endState.playerState.currentBlock : 0);
+    }
+
+    public static int getSumOrbs(){
+        return endState.playerState.orbs.size();
     }
 }
