@@ -1,10 +1,15 @@
 package battleaimod.battleai.evolution.utils;
 
 import battleaimod.ValueFunctions;
-import battleaimod.battleai.StateNode;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import savestate.SaveState;
+import savestate.monsters.MonsterState;
+import savestate.powers.PowerState;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,9 +24,16 @@ public class ValueFunctionManager {
         MONSTERS_REMAINING,
         SUM_MONSTER_HEALTH,
         POWERS_PLAYED,
-        //SUM_POISON,
-        //SUM_WEAK,
-        //SUM_VULNERABLE;
+        SUM_ENEMY_POISON,
+        SUM_ENEMY_WEAK,
+        SUM_ENEMY_VULNERABLE,
+        SUM_ENEMY_STRENGTH,
+        SUM_PLAYER_WEAK,
+        SUM_PLAYER_VULNERABLE,
+        SUM_PLAYER_STRENGTH,
+        SUM_PLAYER_DEX,
+        EFFECTIVE_HP,
+        SUM_ORBS,
         ;
     }
 
@@ -30,28 +42,60 @@ public class ValueFunctionManager {
     private static SaveState endState;
     private static List<AbstractCard> cardsPlayed;
 
+    private static final Map<String, Integer> monsterPowerTotals = new HashMap<>();
+    private static boolean monsterCacheValid = false;
+    private static final Map<String, Integer> playerPowerTotals = new HashMap<>();
+    private static boolean playerCacheValid = false;
+
     private static final Map<Variables, Double> valueMap = new HashMap<>();
+
+    public static void writeVariablesToFile(String fileName) {
+        File file = new File(fileName);
+        try (BufferedWriter writer = Files.newBufferedWriter(file.toPath())) {
+            for (Variables v : Variables.values()) {
+                writer.write(v.name());
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to write Variables to file", e);
+        }
+    }
 
     public static void initFuncValues(SaveState startState, SaveState endState, List<AbstractCard> cardsPlayed){
         ValueFunctionManager.startState = startState;
         ValueFunctionManager.endState = endState;
         ValueFunctionManager.cardsPlayed = cardsPlayed;
 
-        ValueFunctionManager.valueMap.put(Variables.SUM_DAMAGE_DEALT,
-                (double) ValueFunctionManager.getTotalDamageDealt());
+        ValueFunctionManager.monsterCacheValid = false;
+        ValueFunctionManager.playerCacheValid = false;
 
-        ValueFunctionManager.valueMap.put(Variables.SUM_MONSTER_HEALTH,
-                (double) ValueFunctionManager.getTotalMonsterHealth());
+        addValueToMap(Variables.SUM_DAMAGE_DEALT, getTotalDamageDealt());
 
-        ValueFunctionManager.valueMap.put(Variables.MONSTERS_REMAINING,
-                (double) ValueFunctionManager.getAliveMonsterCount());
+        addValueToMap(Variables.SUM_MONSTER_HEALTH, getTotalMonsterHealth());
 
-        ValueFunctionManager.valueMap.put(Variables.DAMAGE_RECEIVED,
-                (double) ValueFunctionManager.getPlayerDamage());
+        addValueToMap(Variables.MONSTERS_REMAINING, getAliveMonsterCount());
 
-        ValueFunctionManager.valueMap.put(Variables.POWERS_PLAYED,
-                (double) ValueFunctionManager.getNumberPowersPlayed());
+        addValueToMap(Variables.DAMAGE_RECEIVED, getPlayerDamage());
 
+        addValueToMap(Variables.POWERS_PLAYED, getNumberPowersPlayed());
+
+        addValueToMap(Variables.SUM_ENEMY_POISON, getMonsterPowerTotal("Poison"));
+        addValueToMap(Variables.SUM_ENEMY_WEAK, getMonsterPowerTotal("Weakened"));
+        addValueToMap(Variables.SUM_ENEMY_VULNERABLE, getMonsterPowerTotal("Vulnerable"));
+        addValueToMap(Variables.SUM_ENEMY_STRENGTH, getMonsterPowerTotal("Strength"));
+
+        addValueToMap(Variables.SUM_PLAYER_WEAK, getPlayerPowerTotal("Weakened"));
+        addValueToMap(Variables.SUM_PLAYER_VULNERABLE, getPlayerPowerTotal("Vulnerable"));
+        addValueToMap(Variables.SUM_PLAYER_STRENGTH, getPlayerPowerTotal("Strength"));
+        addValueToMap(Variables.SUM_PLAYER_DEX, getPlayerPowerTotal("Dexterity"));
+
+        addValueToMap(Variables.EFFECTIVE_HP, getPlayerEffectiveHP());
+        addValueToMap(Variables.SUM_ORBS, getSumOrbs());
+
+    }
+
+    private static void addValueToMap(Variables v, double d){
+        ValueFunctionManager.valueMap.put(v, d);
     }
 
     /**
@@ -112,5 +156,62 @@ public class ValueFunctionManager {
             }
         }
         return sum;
+    }
+
+
+
+    private static void computePlayerPowerTotals() {
+        playerPowerTotals.clear();
+
+        for (PowerState p : endState.playerState.powers) {
+            playerPowerTotals.merge(p.powerId, p.amount, Integer::sum);
+        }
+
+        playerCacheValid = true;
+    }
+
+    public static int getPlayerPowerTotal(String powerId) {
+        if (!playerCacheValid) computePlayerPowerTotals();
+        return playerPowerTotals.getOrDefault(powerId, 0);
+    }
+
+    private static void computeMonsterPowerTotals() {
+        monsterPowerTotals.clear();
+
+        if (endState == null ||
+                endState.curMapNodeState == null ||
+                endState.curMapNodeState.monsterData == null) {
+            monsterCacheValid = true;
+            return;
+        }
+
+        for (MonsterState m : endState.curMapNodeState.monsterData) {
+            for (PowerState p : m.powers) {
+                monsterPowerTotals.merge(p.powerId, p.amount, Integer::sum);
+            }
+        }
+
+        monsterCacheValid = true;
+    }
+
+    public static int getMonsterPowerTotal(String powerId) {
+        if (!monsterCacheValid) computeMonsterPowerTotals();
+        return monsterPowerTotals.getOrDefault(powerId, 0);
+    }
+
+    public static int getPlayerEffectiveHP(){
+        boolean barricade = false;
+        for(PowerState p : endState.playerState.powers){
+            if(p.powerId.equals("Barricade")){
+                barricade = true;
+                break;
+            }
+        }
+
+        return endState.playerState.getCurrentHealth() + (barricade ? endState.playerState.currentBlock : 0);
+    }
+
+    public static int getSumOrbs(){
+        return endState.playerState.orbs.size();
     }
 }
