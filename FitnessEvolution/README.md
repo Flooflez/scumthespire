@@ -40,15 +40,17 @@ FitnessEvolution/
 │   └── evolution_log.txt     -- one human-readable line per invocation
 │
 ├── src/main/java/fitnessevolution/
-│   ├── Main.java             -- CLI: warmup (K<N) vs evolve (K=N); END-sentinel aware
+│   ├── Main.java             -- CLI entry point; dispatches one-shot vs --poll
 │   ├── Config.java           -- central paths + population tunables
 │   ├── FeatureBankLoader.java-- parse FeatureBank.txt → List<String> / ISeq<Var<Double>>
 │   ├── OpSet.java            -- operator set (+,-,*,/) + ephemeral const in [-5,5]
 │   ├── MathExprIO.java       -- parseExpression() / canonical serialize()
 │   ├── Scored.java           -- record (Genotype, fitness) with expr() helper
 │   ├── GPEngine.java         -- GP driver: randomTrees, rehydrate, step (elitism, tournament, mutate, crossover)
-│   ├── JeneticsIO.java       -- writePopulation(), readModOutput()
+│   ├── GPProcessor.java      -- shared K→N processing (warmup, evolve, truncate)
+│   ├── JeneticsIO.java       -- read/write IPC, READY detection, atomic writes
 │   ├── RunCounter.java       -- per-run step counter (runs/<id>.step)
+│   ├── PollLoop.java         -- long-running daemon for --poll mode
 │   └── OfflineMockRun.java   -- dev harness (see "Debugging without the mod" below)
 │
 ├── src/test/java/fitnessevolution/
@@ -95,19 +97,31 @@ where the tree above shows.
 ## Teammate integration
 
 See [`MOD_INTEGRATION.md`](MOD_INTEGRATION.md) for the mod author's
-~10-minute run-book. Short version:
+~10-minute run-book. Two modes:
 
+### One-shot (default)
+Mod drives the loop by calling the jar once per generation.
 1. Mod writes `ipc/ModOutput.txt` with K scored expressions (1 ≤ K ≤ 20).
 2. Mod runs `java -jar target/FitnessEvolution.jar --run-id=<id>`.
 3. Jar writes 20 expressions to `ipc/JeneticsOutput.txt`.
    - If K < 20 (warmup): echoes the K inputs + fills (20 − K) random trees.
    - If K = 20 (evolve): one GP step → next generation.
    - If K > 20: truncates to top 20 by fitness, then evolves.
-4. Mod runs one battle per expression, scores via its outer fitness
-   formula (see MOD_INTEGRATION.md §3), writes 20 FITNESS/expr pairs
-   back, loops to 3.
+4. Mod runs one battle per expression, writes 20 FITNESS/expr pairs back,
+   loops to 2.
 5. Stop cleanly by writing `END` to ModOutput.txt and calling the jar
    once more.
+
+### Poll (`--poll`)
+Long-running daemon. Mod interacts via files only.
+1. Start: `java -jar target/FitnessEvolution.jar --poll --run-id=<id>`.
+2. Each handshake uses `READY` on the last non-blank line of each file as
+   the completion flag. We wipe `ModOutput.txt` after consuming; mod
+   wipes `JeneticsOutput.txt` after consuming. Fully symmetric.
+3. Stop: Ctrl-C (foreground) or SIGTERM (background). Current iteration
+   completes before exit.
+4. See [`MOD_INTEGRATION.md` §9](MOD_INTEGRATION.md) for the full
+   protocol and the mod-side responsibilities.
 
 ## Configuration reference
 
@@ -151,8 +165,9 @@ producing sensible offspring without the mod running.
 mvn test
 ```
 
-31 tests, all green. Covers feature-bank parsing, operator set,
+36 tests, all green. Covers feature-bank parsing, operator set,
 MathExpr canonical serialize round-trip, GP engine invariants, run
-counter round-trip, JeneticsIO malformed-input handling, and
-end-to-end `Main` cycles (warmup, evolve, END, truncation,
-independent run IDs).
+counter round-trip, JeneticsIO malformed-input handling, end-to-end
+`Main` cycles (warmup, evolve, END, truncation, independent run IDs),
+and poll-mode daemon lifecycle (warmup + evolve iterations, malformed
+recovery, graceful shutdown, READY marker on output).
