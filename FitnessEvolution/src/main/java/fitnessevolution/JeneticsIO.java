@@ -6,6 +6,7 @@ import io.jenetics.prog.ProgramGene;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,6 +36,7 @@ import java.util.List;
 public final class JeneticsIO {
 
     public static final String FITNESS_PREFIX = "FITNESS=";
+    public static final String READY_TOKEN = "READY";
 
     private JeneticsIO() {}
 
@@ -75,14 +77,11 @@ public final class JeneticsIO {
      */
     public static List<ModResult> readModOutput(Path modOutputFile)
         throws IOException {
-        List<String> raw = Files.readAllLines(modOutputFile);
-        List<String> lines = new ArrayList<>(raw.size());
-        for (String line : raw) {
-            String trimmed = line.trim();
-            if (!trimmed.isEmpty()) {
-                lines.add(trimmed);
-            }
-        }
+        List<String> lines = readNonBlankTrimmedLines(modOutputFile);
+        // Tolerantly skip any READY tokens — this lets poll mode (which
+        // writes READY on the last line) reuse the same parser without a
+        // separate code path.
+        lines.removeIf(l -> l.equalsIgnoreCase(READY_TOKEN));
         if (lines.isEmpty()) {
             throw new IllegalStateException(
                 "ModOutput.txt is empty — expected FITNESS= pairs or END");
@@ -91,6 +90,78 @@ public final class JeneticsIO {
             return null;
         }
         return parseFitnessPairs(lines, modOutputFile);
+    }
+
+    /**
+     * Returns {@code true} iff {@code file} exists and its last non-blank
+     * line is the {@link #READY_TOKEN}. Used by the polling loop to wait
+     * for a complete ModOutput write without requiring atomic file
+     * operations on the mod side.
+     */
+    public static boolean isPollReady(Path file) throws IOException {
+        if (!Files.exists(file)) {
+            return false;
+        }
+        List<String> lines = readNonBlankTrimmedLines(file);
+        if (lines.isEmpty()) {
+            return false;
+        }
+        return lines.get(lines.size() - 1).equalsIgnoreCase(READY_TOKEN);
+    }
+
+    /**
+     * Atomically write {@code exprs} (one per line) to {@code outFile}.
+     * If {@code appendReady} is true, a final {@link #READY_TOKEN} line
+     * follows — used by poll mode so the mod knows the file is complete.
+     *
+     * <p>Writes to a sibling {@code .tmp} first, then atomically renames.
+     * A consumer that reads {@code outFile} only ever sees the previous
+     * complete version or the new complete version — never a partial one.
+     */
+    public static void writeExpressionsAtomic(
+        Path outFile, List<String> exprs, boolean appendReady
+    ) throws IOException {
+        Path parent = outFile.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String e : exprs) {
+            sb.append(e).append('\n');
+        }
+        if (appendReady) {
+            sb.append(READY_TOKEN).append('\n');
+        }
+        Path tmp = outFile.resolveSibling(outFile.getFileName() + ".tmp");
+        Files.writeString(tmp, sb.toString());
+        try {
+            Files.move(tmp, outFile, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            // ATOMIC_MOVE isn't supported on some filesystems, and on some
+            // platforms it can't combine with REPLACE_EXISTING. Fall back to
+            // an explicit delete + rename — still safe because the reader
+            // uses last-line READY detection, so it won't act on any
+            // intermediate file state we might briefly expose.
+            Files.deleteIfExists(outFile);
+            Files.move(tmp, outFile);
+        }
+    }
+
+    /** Truncate a file to empty. Used when wiping ModOutput after consume. */
+    public static void truncateToEmpty(Path file) throws IOException {
+        Files.writeString(file, "");
+    }
+
+    private static List<String> readNonBlankTrimmedLines(Path file) throws IOException {
+        List<String> raw = Files.readAllLines(file);
+        List<String> lines = new ArrayList<>(raw.size());
+        for (String line : raw) {
+            String trimmed = line.trim();
+            if (!trimmed.isEmpty()) {
+                lines.add(trimmed);
+            }
+        }
+        return lines;
     }
 
     private static List<ModResult> parseFitnessPairs(
