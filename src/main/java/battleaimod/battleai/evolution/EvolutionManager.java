@@ -128,12 +128,12 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     public void failCombat(){
         combatFailed = true;
-        //AbstractDungeon.actionManager.addToTop(new LoseHPAction(AbstractDungeon.player, AbstractDungeon.player, 999));
+        AbstractDungeon.actionManager.addToTop(new LoseHPAction(AbstractDungeon.player, AbstractDungeon.player, 999));
     }
 
     //TODO: check if this works when combat ends and in reward screen
     private boolean combatOver() {
-        return combatFailed || isDead() || (isInCombat() && (AbstractDungeon.getCurrRoom().isBattleOver));
+        return  isDead() || (isInCombat() && (AbstractDungeon.getCurrRoom().isBattleOver));
     }
 
     private boolean isInCombat() {

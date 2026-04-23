@@ -144,7 +144,7 @@ public class AiClient {
                         //Current expression is invalid
                         BattleAiMod.evolutionManager.failCombat();
                         System.err.println("Expression failed! Stopping combat!");
-                        break;
+                        continue;
                     }
 
                     try {
