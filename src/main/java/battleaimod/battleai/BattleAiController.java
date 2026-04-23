@@ -75,10 +75,10 @@ public class BattleAiController implements Controller {
     private AbstractFitness currentFitness;
 
     private int currentGeneration = 0;
-    private final int GENERATIONS = 10;
-    private final int POPULATIONSIZE = 100;
-    private final int MUTATIONSIZE = 85;
-    private final int PARENTSIZE = 25;
+    private final int GENERATIONS = 15;
+    private final int POPULATIONSIZE = 80;
+    private final int MUTATIONSIZE = 55;
+    private final int PARENTSIZE = 15;
     private final int ELITENUM = 5;
 
     // EXPERIMENTAL
