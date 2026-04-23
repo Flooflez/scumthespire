@@ -10,6 +10,7 @@ import battleaimod.battleai.evolution.utils.fitness.AbstractFitness;
 import battleaimod.battleai.evolution.utils.fitness.CompatExpression;
 import battleaimod.battleai.evolution.utils.fitness.WeightedSumFitness;
 import battleaimod.utils.FileLogger;
+import com.megacrit.cardcrawl.actions.GameActionManager;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
@@ -270,6 +271,16 @@ public class BattleAiController implements Controller {
             }
 
             if (!initialized) {
+
+                if(GameActionManager.turn >= 50){
+                    FileLogger.log("Too Slow! Cancelling Early");
+                    isDone = true;
+                    bestEnd = currentState;
+                    fitnessFailed = true;
+                    return;
+                }
+
+
                 FileLogger.log("Init!");
                 initialized = true;
                 isDone = false;

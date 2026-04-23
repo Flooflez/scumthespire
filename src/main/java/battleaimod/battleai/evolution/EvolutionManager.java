@@ -271,6 +271,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
         //TODO: test if actions that trigger after death still trigger on next run
         AbstractDungeon.actionManager.actions.clear();
+        AbstractDungeon.actionManager.monsterAttacksQueued = true;
+        AbstractDungeon.actionManager.monsterQueue.clear();
     }
 
     private void evolvePopulation() {
