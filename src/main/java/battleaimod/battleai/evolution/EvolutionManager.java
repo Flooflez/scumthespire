@@ -16,6 +16,7 @@ import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
 import savestate.SaveState;
+import savestate.monsters.MonsterState;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -509,11 +510,18 @@ public class EvolutionManager implements PostUpdateSubscriber {
         int playerHealth = endState.getPlayerHealth();
         int healthLost = startingState.getPlayerHealth() - endState.getPlayerHealth();
         int turnCount = endState.turn;
+        int enemiesLeft = (int) endState.curMapNodeState.monsterData.stream()
+                .filter(monster -> monster != null && monster.currentHealth > 0)
+                .count();
+        int enemyHealthLeft = ValueFunctionManager.getTotalMonsterHealth(endState);
 
 
         return playerHealth * 1.0   // reward ending health
                 - healthLost * 5.0   // penalize damage taken
-                - turnCount * 2.0;  // penalize slow fights
+                - turnCount * 2.0  // penalize slow fights
+                - enemiesLeft * 10.0 // penalize enemies left alive
+                - enemyHealthLeft * 2.0 //penalize remaining enemy health
+                ;
     }
 
     private void startNextGenCombat(){

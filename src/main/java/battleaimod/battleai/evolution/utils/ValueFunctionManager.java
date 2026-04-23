@@ -1,6 +1,8 @@
 package battleaimod.battleai.evolution.utils;
 
+import basemod.ReflectionHacks;
 import battleaimod.ValueFunctions;
+import battleaimod.utils.FileLogger;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import savestate.SaveState;
 import savestate.monsters.MonsterState;
@@ -103,21 +105,42 @@ public class ValueFunctionManager {
      * such as barricade and unawakened.
      */
     public static int getTotalMonsterHealth() {
-        return endState.curMapNodeState.monsterData.stream()
+        return getTotalMonsterHealth(endState);
+    }
+
+    //This is so we can call it from evo manager
+    public static int getTotalMonsterHealth(SaveState s) {
+        return s.curMapNodeState.monsterData.stream()
                 .map(monster -> {
                     if (monster.powers.stream()
                             .anyMatch(power -> power.powerId
                                     .equals("Barricade"))) {
                         return monster.currentHealth + monster.currentBlock;
-                    } else if (monster.powers.stream()
-                            .anyMatch(power -> power.powerId
-                                    .equals("Unawakened"))) {
+                    } else if ("AwakenedOne".equals(monster.id) && !isAwakenedOneAwakened(monster)) {
+                        FileLogger.log("AwakenedOne is NOT awakened, adding health!");
                         return monster.currentHealth + monster.maxHealth;
                     }
                     return monster.currentHealth;
                 })
                 .reduce(Integer::sum)
                 .get();
+    }
+
+    private static boolean isAwakenedOneAwakened(MonsterState state) {
+
+        byte nextMove = getMonsterStateNextMove(state);
+
+        return nextMove == 5 || // DARK_ECHO
+                nextMove == 6 || // SLUDGE
+                nextMove == 8;   // TACKLE
+    }
+
+    private static byte getMonsterStateNextMove(MonsterState state) {
+        return ReflectionHacks.getPrivate(
+                state,
+                MonsterState.class,
+                "nextMove"
+        );
     }
 
     /**

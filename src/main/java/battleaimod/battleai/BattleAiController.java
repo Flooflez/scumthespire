@@ -109,10 +109,10 @@ public class BattleAiController implements Controller {
 
         startingHand = new ArrayList<>(AbstractDungeon.player.hand.group);
 
-        FileLogger.log("starting hand: ");
-        for (AbstractCard c : AbstractDungeon.player.hand.group){
-            FileLogger.log("   card id: " + c.getMetricID());
-        }
+//        FileLogger.log("starting hand: ");
+//        for (AbstractCard c : AbstractDungeon.player.hand.group){
+//            FileLogger.log("   card id: " + c.getMetricID());
+//        }
 
         for (int p = 0; p < populationSize; p++) {
 
@@ -281,7 +281,7 @@ public class BattleAiController implements Controller {
                 }
 
 
-                FileLogger.log("Init!");
+                //FileLogger.log("Init!");
                 initialized = true;
                 isDone = false;
                 bestEnd = null;
@@ -334,7 +334,7 @@ public class BattleAiController implements Controller {
                 lastCmdNull = false;
                 lastCmdEnd = false;
 
-                FileLogger.log("current energy: " + EnergyPanel.totalCount);
+                //FileLogger.log("current energy: " + EnergyPanel.totalCount);
 
 
                 if(dummyCommandQueue == null || dummyCommandQueue.isEmpty()){
@@ -348,7 +348,7 @@ public class BattleAiController implements Controller {
                         //eval score, add to final sorting list
                         FileLogger.log("==Finished single sim==");
                         //FileLogger.log("last command: " +currentState.lastCommand);
-                        FileLogger.log("size of node list: "+ stateNodesToGetToNode(currentState).size());
+                        //FileLogger.log("size of node list: "+ stateNodesToGetToNode(currentState).size());
 
                         double turnFitness = getFitness(startStateNode, currentState, currentCardSeq.getCardsAsAbstractCard());
                         FileLogger.log("fitness: "+turnFitness);
@@ -443,7 +443,7 @@ public class BattleAiController implements Controller {
                 }
                 else{
                     StateNode next = new StateNode(currentState, cmd, this);
-                    FileLogger.log("Playing command: " + cmd);
+                    //FileLogger.log("Playing command: " + cmd);
 
                     if(cmd instanceof EndCommand){
                         lastCmdEnd = true;
@@ -452,7 +452,7 @@ public class BattleAiController implements Controller {
                     currentState = next;
 
                     if(playingCard){
-                        FileLogger.log("Cards played: " + cardsPlayed);
+                        //FileLogger.log("Cards played: " + cardsPlayed);
                         cardsPlayed++;
                     }
                 }
