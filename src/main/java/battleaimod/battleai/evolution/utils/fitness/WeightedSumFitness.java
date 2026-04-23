@@ -1,12 +1,12 @@
-package battleaimod.battleai.evolution.utils;
+package battleaimod.battleai.evolution.utils.fitness;
+
+import battleaimod.battleai.evolution.utils.ValueFunctionManager;
 
 import java.util.Random;
 
-public class WeightedSumFitness implements Comparable<WeightedSumFitness> {
+public class WeightedSumFitness extends AbstractFitness implements Comparable<AbstractFitness> {
     private static final Random rand = new Random();
     private final double[] weights;
-    private double fitness = 0;
-
 
     public WeightedSumFitness(String line) {
         String[] parts = line.split(",");
@@ -43,10 +43,9 @@ public class WeightedSumFitness implements Comparable<WeightedSumFitness> {
         }
     }
 
-    public void setFitnessFitness(double fitness) {
-        this.fitness = fitness;
-    }
 
+
+    @Override
     public double evaluate(){
         double sum = 0;
         ValueFunctionManager.Variables[] vars = ValueFunctionManager.Variables.values();
@@ -80,7 +79,7 @@ public class WeightedSumFitness implements Comparable<WeightedSumFitness> {
             oldWeight += rand.nextGaussian() * 0.05;
         }
 
-        // 🔥 Snap-to-zero logic
+        // Snap-to-zero logic
         double epsilon = 1e-3;       // "close to zero" threshold
         double zeroChance = 0.3;     // probability of snapping
 
@@ -110,10 +109,5 @@ public class WeightedSumFitness implements Comparable<WeightedSumFitness> {
         return sb.toString();
     }
 
-    @Override
-    public int compareTo(WeightedSumFitness other) {
-        // Higher score = better (sorted descending)
-        return Double.compare(other.fitness, this.fitness);
-    }
 
 }

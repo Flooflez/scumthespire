@@ -1,31 +1,33 @@
 package battleaimod.battleai.evolution;
 
 import basemod.interfaces.PostUpdateSubscriber;
-import battleaimod.BattleAiMod;
-import battleaimod.battleai.evolution.utils.WeightedSumFitness;
+import battleaimod.battleai.evolution.utils.ValueFunctionManager;
+import battleaimod.battleai.evolution.utils.fitness.AbstractFitness;
+import battleaimod.battleai.evolution.utils.fitness.CompatExpression;
+import battleaimod.battleai.evolution.utils.fitness.WeightedSumFitness;
 import battleaimod.utils.CommandAutomator;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.megacrit.cardcrawl.actions.GameActionManager;
+import com.megacrit.cardcrawl.actions.common.LoseHPAction;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
-import ludicrousspeed.LudicrousSpeedMod;
 import savestate.SaveState;
-import savestate.SaveStateMod;
 
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class EvolutionManager implements PostUpdateSubscriber {
     private boolean simRunning = false;
     public static boolean canRunAutoBattler = false;
     private static final Random rand = new Random();
-    private List<WeightedSumFitness> population = new ArrayList<>();
+    private List<AbstractFitness> population = new ArrayList<>();
     private int currentFitnessIndex;
 
     private final int MIN_POPULATION = 10;
@@ -47,8 +49,17 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private final boolean ALLOW_FAST_MODE = true;
     private boolean currentlyFast = false;
 
+    public boolean combatFailed = false;
+    private final double VERY_BAD_SCORE = -100000000;
 
-    //TODO: check if server client both using savestates is gonna explode everything
+    public static boolean hasTriggeredThisTurn = false;
+
+    private enum FitnessType{
+        WEIGHTED_SUM,
+        EXPRESSION_TREE;
+    }
+
+    private FitnessType fitnessType;
 
     @Override
     public void receivePostUpdate() {
@@ -99,16 +110,30 @@ public class EvolutionManager implements PostUpdateSubscriber {
                 EvolutionManager.canRunAutoBattler = false;
                 System.out.println("combat over detected!!");
 
-                population.get(currentFitnessIndex).setFitnessFitness(calculateFitnessFitness());
+                if(combatFailed){
+                    population.get(currentFitnessIndex).setFitnessFitness(VERY_BAD_SCORE);
+
+                    AbstractDungeon.overlayMenu.endTurnButton.disable(true);
+                    hasTriggeredThisTurn = false;
+
+                }
+                else{
+                    population.get(currentFitnessIndex).setFitnessFitness(calculateFitnessFitness());
+                }
 
                 startNewCombat();
             }
         }
     }
 
+    public void failCombat(){
+        combatFailed = true;
+        AbstractDungeon.actionManager.addToTop(new LoseHPAction(AbstractDungeon.player, AbstractDungeon.player, 999));
+    }
+
     //TODO: check if this works when combat ends and in reward screen
     private boolean combatOver() {
-        return isDead() || (isInCombat() && (AbstractDungeon.getCurrRoom().isBattleOver));
+        return  isDead() || (isInCombat() && (AbstractDungeon.getCurrRoom().isBattleOver));
     }
 
     private boolean isInCombat() {
@@ -123,6 +148,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
     }
 
     private void initEvolution(){
+        combatFailed = false;
         currentFitnessIndex = -1;
         getPopulationFromFile("FitnessFunctions.txt");
         CommandAutomator.readCommands();
@@ -130,6 +156,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
         CommandAutomator.runInitCommands();
         startingDeck = new ArrayList<>(AbstractDungeon.player.masterDeck.group);
         waitingForDeckUpdate = true;
+
+        ValueFunctionManager.writeVariablesToFile("ipc/FeatureBank.txt");
 
         toggleFast();
     }
@@ -201,6 +229,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     private void startNewCombat(){
         cardsPlayed.clear();
+        combatFailed = false;
         currentFitnessIndex++;
         if(currentFitnessIndex == population.size()){
             //finished all fitness functions
@@ -211,6 +240,10 @@ public class EvolutionManager implements PostUpdateSubscriber {
                 System.out.println("Sorting and Evolving next gen");
                 //sort
                 Collections.sort(population);
+
+                //write temp just in case of program crash
+                writePopulationToFile("NewFitnessFunctions.txt");
+
                 //evolve next gen
                 evolvePopulation();
 
@@ -235,11 +268,32 @@ public class EvolutionManager implements PostUpdateSubscriber {
             writeFitnessFunction();
             restartFight();
         }
+
+        //TODO: test if actions that trigger after death still trigger on next run
+        AbstractDungeon.actionManager.actions.clear();
+        AbstractDungeon.actionManager.monsterAttacksQueued = true;
+        AbstractDungeon.actionManager.monsterQueue.clear();
     }
 
     private void evolvePopulation() {
+        switch (fitnessType){
+            case EXPRESSION_TREE:
+                evolveExpressionTree();
+                break;
+            case WEIGHTED_SUM:
+                evolveWeightedSum();
+                break;
+        }
+    }
+
+    private void evolveWeightedSum(){
+        List<WeightedSumFitness> population = this.population.stream()
+                .filter(f -> f instanceof WeightedSumFitness)
+                .map(f -> (WeightedSumFitness) f)
+                .collect(Collectors.toList());
+
         // Assume population is already sorted by fitness (best first)
-        List<WeightedSumFitness> newPopulation = new ArrayList<>();
+        List<AbstractFitness> newPopulation = new ArrayList<>();
 
         // 1. Elitism (copy top ELITES without mutation)
         for (int i = 0; i < ELITES && i < population.size(); i++) {
@@ -265,13 +319,91 @@ public class EvolutionManager implements PostUpdateSubscriber {
         }
 
         // 3. Replace old population
-        population = newPopulation;
+        this.population = newPopulation;
+    }
+
+    private void evolveExpressionTree() {
+        File outFile = new File("ipc/ModOutput.txt");
+        File inFile = new File("ipc/JeneticsOutput.txt");
+
+        // ----------------------------
+        // 1. WRITE POPULATION TO FILE
+        // ----------------------------
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
+            for (AbstractFitness individual : population) {
+                writer.write("FITNESS=" + individual.getFitnessFitness());
+                writer.newLine();
+
+                writer.write(individual.toString());
+                writer.newLine();
+            }
+
+            writer.write("READY");
+            writer.newLine();
+            writer.flush();
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to write population for evolution", e);
+        }
+
+        // ----------------------------
+        // 2. WAIT FOR JENETICS RESPONSE
+        // ----------------------------
+        while (true) {
+            if (inFile.exists()) {
+                try {
+                    List<String> lines = Files.readAllLines(inFile.toPath());
+
+                    int end = lines.size();
+                    while (end > 0 && lines.get(end - 1).trim().isEmpty()) {
+                        end--;
+                    }
+
+                    if (end > 0 && "READY".equals(lines.get(end - 1).trim())) {
+                        List<AbstractFitness> newPopulation = new ArrayList<>();
+
+                        for (int i = 0; i < end - 1; i++) {
+                            String expr = lines.get(i).trim();
+
+                            if (expr.isEmpty()) {
+                                continue;
+                            }
+
+                            newPopulation.add(new CompatExpression(expr));
+                        }
+
+                        population.clear();
+                        population.addAll(newPopulation);
+
+                        // ----------------------------
+                        // 3. CLEAR INPUT FILE
+                        // ----------------------------
+                        try (BufferedWriter clearWriter = new BufferedWriter(new FileWriter(inFile, false))) {
+                            clearWriter.write("");
+                        }
+
+                        break;
+                    }
+
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to read evolved population", e);
+                }
+            }
+
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
     }
 
     private void writeFitnessFunction() {
-        //TODO: for now, we send fitness by file which is dumb but idk networking
-        WeightedSumFitness current = population.get(currentFitnessIndex);
+        AbstractFitness current = population.get(currentFitnessIndex);
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get("CurrentFitnessValues.txt"))) {
+            writer.write(fitnessType.name());
+            writer.newLine();
             writer.write(current.toString());
             writer.newLine();
         } catch (IOException e) {
@@ -295,35 +427,69 @@ public class EvolutionManager implements PostUpdateSubscriber {
         }
 
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
 
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
+            String header = reader.readLine();
 
-                // Skip empty lines
-                if (line.isEmpty()) continue;
+            if (header == null) {
+                System.out.println("Empty population file.");
+                return;
+            }
 
-                population.add(new WeightedSumFitness(line));
+            switch (header.trim()) {
+
+                case "WEIGHTED_SUM":
+                    fitnessType = FitnessType.WEIGHTED_SUM;
+                    readWeightedSumPopulation(reader);
+                    break;
+
+                case "EXPRESSION_TREE":
+                    fitnessType = FitnessType.EXPRESSION_TREE;
+                    readExpressionTreePopulation(reader);
+                    break;
+
+                default:
+                    System.out.println("Unknown population type: " + header);
             }
 
         } catch (IOException e) {
-            throw new RuntimeException("Failed to read population file: " + fileName, e);
+            e.printStackTrace();
+        }
+    }
+
+    private void readWeightedSumPopulation(BufferedReader reader) throws IOException {
+        String line;
+        while ((line = reader.readLine()) != null) {
+            line = line.trim();
+
+            // Skip empty lines
+            if (line.isEmpty()) continue;
+
+            population.add(new WeightedSumFitness(line));
         }
 
         // Pad population if too small
         while (population.size() < MIN_POPULATION) {
-            // Pick a random parent from existing population
-            WeightedSumFitness parent = population.get(rand.nextInt(population.size()));
-
-            // Mutated copy
+            WeightedSumFitness parent = (WeightedSumFitness) population.get(rand.nextInt(population.size()));
             population.add(new WeightedSumFitness(parent, true));
+        }
+    }
+
+    private void readExpressionTreePopulation(BufferedReader reader) throws IOException {
+        String line;
+        while ((line = reader.readLine()) != null) {
+            line = line.trim();
+
+            // Skip empty lines
+            if (line.isEmpty()) continue;
+
+            population.add(new CompatExpression(line));
         }
     }
 
     private void writePopulationToFile(String fileName) {
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(fileName))) {
 
-            for (WeightedSumFitness individual : population) {
+            for (AbstractFitness individual : population) {
                 writer.write(individual.toString());
                 writer.newLine();
             }

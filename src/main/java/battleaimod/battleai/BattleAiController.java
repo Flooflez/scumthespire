@@ -6,8 +6,11 @@ import battleaimod.battleai.data.CardAction;
 import battleaimod.battleai.data.CardSequence;
 import battleaimod.battleai.data.dummycommands.*;
 import battleaimod.battleai.evolution.utils.ValueFunctionManager;
-import battleaimod.battleai.evolution.utils.WeightedSumFitness;
+import battleaimod.battleai.evolution.utils.fitness.AbstractFitness;
+import battleaimod.battleai.evolution.utils.fitness.CompatExpression;
+import battleaimod.battleai.evolution.utils.fitness.WeightedSumFitness;
 import battleaimod.utils.FileLogger;
+import com.megacrit.cardcrawl.actions.GameActionManager;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
@@ -20,7 +23,6 @@ import savestate.SaveState;
 import savestate.SaveStateMod;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -51,6 +53,7 @@ public class BattleAiController implements Controller {
 
     public int startingHealth;
     public boolean isDone = false;
+    public boolean fitnessFailed = false;
     public final SaveState startingState;
     public int expectedDamage = 0;
     private boolean initialized;
@@ -69,13 +72,13 @@ public class BattleAiController implements Controller {
     private boolean lastCmdEnd = false;
     private boolean currSequenceValid = true;
     private int cardsPlayed = 0;
-    private WeightedSumFitness currentFitness;
+    private AbstractFitness currentFitness;
 
     private int currentGeneration = 0;
-    private final int GENERATIONS = 10;
-    private final int POPULATIONSIZE = 100;
-    private final int MUTATIONSIZE = 85;
-    private final int PARENTSIZE = 25;
+    private final int GENERATIONS = 15;
+    private final int POPULATIONSIZE = 80;
+    private final int MUTATIONSIZE = 55;
+    private final int PARENTSIZE = 15;
     private final int ELITENUM = 5;
 
     // EXPERIMENTAL
@@ -204,13 +207,31 @@ public class BattleAiController implements Controller {
 
     private void loadFitness() {
         try (BufferedReader reader = Files.newBufferedReader(Paths.get("CurrentFitnessValues.txt"))) {
-            String line = reader.readLine();
 
-            if (line == null || line.trim().isEmpty()) {
+            String typeLine = reader.readLine();
+
+            if (typeLine == null || typeLine.trim().isEmpty()) {
                 return;
             }
 
-            currentFitness = new WeightedSumFitness(line.trim());
+            String dataLine = reader.readLine();
+            if (dataLine == null || dataLine.trim().isEmpty()) {
+                return;
+            }
+
+            String type = typeLine.trim();
+            String data = dataLine.trim();
+
+            switch (type) {
+                case "WEIGHTED_SUM":
+                    currentFitness = new WeightedSumFitness(data);
+                    break;
+                case "EXPRESSION_TREE":
+                    currentFitness = new CompatExpression(data);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown fitness type: " + type);
+            }
 
         } catch (IOException e) {
             throw new RuntimeException("Failed to load fitness file", e);
@@ -220,17 +241,16 @@ public class BattleAiController implements Controller {
     private double getFitness(StateNode start, StateNode end, List<AbstractCard> cardsPlayed) {
         ValueFunctionManager.initFuncValues(start.saveState, end.saveState, cardsPlayed);
 
-//        double damageTaken = StateNode.getPlayerDamage(end);
-//        double damageDealt = ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState);
-//        double remainingHP = ValueFunctions.getTotalMonsterHealth(end.saveState);
-//        int remainingMonsters = ValueFunctions.getAliveMonsterCount(end.saveState);
-//
-//        double fitness = (damageDealt * 2.0)
-//                - (damageTaken * 5.0)
-//                - (remainingHP * 1.0)
-//                - (remainingMonsters * 10.0);
-
-        return currentFitness.evaluate();
+        double result = 0;
+        try{
+            result = currentFitness.evaluate();
+        }catch (Exception e){
+            isDone = true;
+            bestEnd = end;
+            fitnessFailed = true;
+            FileLogger.logError("fitness failed: " + e.getMessage());
+        }
+        return result;
     }
 
 
@@ -251,9 +271,21 @@ public class BattleAiController implements Controller {
             }
 
             if (!initialized) {
+
+                if(GameActionManager.turn >= 50){
+                    FileLogger.log("Too Slow! Cancelling Early");
+                    isDone = true;
+                    bestEnd = currentState;
+                    fitnessFailed = true;
+                    return;
+                }
+
+
+                FileLogger.log("Init!");
                 initialized = true;
                 isDone = false;
                 bestEnd = null;
+                fitnessFailed = false;
                 //shouldRunEndCommand = false;
                 finalSequences = new ArrayList<>();
 

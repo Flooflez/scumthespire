@@ -2,6 +2,7 @@ package battleaimod.networking;
 
 import battleaimod.BattleAiMod;
 import battleaimod.battleai.CommandRunnerController;
+import battleaimod.battleai.evolution.EvolutionManager;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -139,6 +140,13 @@ public class AiClient {
                         continue;
                     }
 
+                    if(readLine.equals("FAILED")){
+                        //Current expression is invalid
+                        BattleAiMod.evolutionManager.failCombat();
+                        System.err.println("Expression failed! Stopping combat!");
+                        continue;
+                    }
+
                     try {
                         JsonObject parsed = new JsonParser().parse(readLine).getAsJsonObject();
                         updateControllerForCommands(parsed);
@@ -150,6 +158,7 @@ public class AiClient {
                     } catch (Exception e) {
                         // Not a json string
                     }
+
                 }
 
                 System.err.println("Received done");
