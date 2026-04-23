@@ -9,6 +9,7 @@ import battleaimod.utils.CommandAutomator;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.megacrit.cardcrawl.actions.GameActionManager;
+import com.megacrit.cardcrawl.actions.common.LoseHPAction;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.core.Settings;
@@ -48,6 +49,10 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private final boolean ALLOW_FAST_MODE = true;
     private boolean currentlyFast = false;
 
+    public boolean combatFailed = false;
+    private final double VERY_BAD_SCORE = -100000000;
+
+    public static boolean hasTriggeredThisTurn = false;
 
     private enum FitnessType{
         WEIGHTED_SUM,
@@ -105,16 +110,30 @@ public class EvolutionManager implements PostUpdateSubscriber {
                 EvolutionManager.canRunAutoBattler = false;
                 System.out.println("combat over detected!!");
 
-                population.get(currentFitnessIndex).setFitnessFitness(calculateFitnessFitness());
+                if(combatFailed){
+                    population.get(currentFitnessIndex).setFitnessFitness(VERY_BAD_SCORE);
+
+                    AbstractDungeon.overlayMenu.endTurnButton.disable(true);
+                    hasTriggeredThisTurn = false;
+
+                }
+                else{
+                    population.get(currentFitnessIndex).setFitnessFitness(calculateFitnessFitness());
+                }
 
                 startNewCombat();
             }
         }
     }
 
+    public void failCombat(){
+        combatFailed = true;
+        //AbstractDungeon.actionManager.addToTop(new LoseHPAction(AbstractDungeon.player, AbstractDungeon.player, 999));
+    }
+
     //TODO: check if this works when combat ends and in reward screen
     private boolean combatOver() {
-        return isDead() || (isInCombat() && (AbstractDungeon.getCurrRoom().isBattleOver));
+        return combatFailed || isDead() || (isInCombat() && (AbstractDungeon.getCurrRoom().isBattleOver));
     }
 
     private boolean isInCombat() {
@@ -129,6 +148,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
     }
 
     private void initEvolution(){
+        combatFailed = false;
         currentFitnessIndex = -1;
         getPopulationFromFile("FitnessFunctions.txt");
         CommandAutomator.readCommands();
@@ -209,6 +229,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     private void startNewCombat(){
         cardsPlayed.clear();
+        combatFailed = false;
         currentFitnessIndex++;
         if(currentFitnessIndex == population.size()){
             //finished all fitness functions
@@ -296,7 +317,6 @@ public class EvolutionManager implements PostUpdateSubscriber {
     }
 
     private void evolveExpressionTree() {
-
         File outFile = new File("ipc/ModOutput.txt");
         File inFile = new File("ipc/JeneticsOutput.txt");
 
@@ -304,12 +324,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
         // 1. WRITE POPULATION TO FILE
         // ----------------------------
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
-
-            writer.write("READY");
-            writer.newLine();
-
             for (AbstractFitness individual : population) {
-
                 writer.write("FITNESS=" + individual.getFitnessFitness());
                 writer.newLine();
 
@@ -317,6 +332,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
                 writer.newLine();
             }
 
+            writer.write("READY");
+            writer.newLine();
             writer.flush();
 
         } catch (IOException e) {
@@ -326,38 +343,29 @@ public class EvolutionManager implements PostUpdateSubscriber {
         // ----------------------------
         // 2. WAIT FOR JENETICS RESPONSE
         // ----------------------------
-
         while (true) {
             if (inFile.exists()) {
-                try (BufferedReader reader = new BufferedReader(new FileReader(inFile))) {
+                try {
+                    List<String> lines = Files.readAllLines(inFile.toPath());
 
-                    String header = reader.readLine();
+                    int end = lines.size();
+                    while (end > 0 && lines.get(end - 1).trim().isEmpty()) {
+                        end--;
+                    }
 
-                    if ("READY".equals(header)) {
-
+                    if (end > 0 && "READY".equals(lines.get(end - 1).trim())) {
                         List<AbstractFitness> newPopulation = new ArrayList<>();
 
-                        String line;
-                        while ((line = reader.readLine()) != null) {
+                        for (int i = 0; i < end - 1; i++) {
+                            String expr = lines.get(i).trim();
 
-                            line = line.trim();
-                            if (line.isEmpty()) continue;
+                            if (expr.isEmpty()) {
+                                continue;
+                            }
 
-                            // Expect FITNESS=...
-                            if (!line.startsWith("FITNESS=")) continue;
-
-                            double fitness = Double.parseDouble(line.substring(9));
-
-                            String expr = reader.readLine();
-                            if (expr == null) break;
-
-                            CompatExpression individual = new CompatExpression(expr);
-                            individual.setFitnessFitness(fitness);
-
-                            newPopulation.add(individual);
+                            newPopulation.add(new CompatExpression(expr));
                         }
 
-                        // Replace population
                         population.clear();
                         population.addAll(newPopulation);
 
@@ -365,7 +373,6 @@ public class EvolutionManager implements PostUpdateSubscriber {
                         // 3. CLEAR INPUT FILE
                         // ----------------------------
                         try (BufferedWriter clearWriter = new BufferedWriter(new FileWriter(inFile, false))) {
-                            // overwrite with empty content
                             clearWriter.write("");
                         }
 
@@ -377,7 +384,6 @@ public class EvolutionManager implements PostUpdateSubscriber {
                 }
             }
 
-            // avoid busy-wait CPU burn
             try {
                 Thread.sleep(50);
             } catch (InterruptedException e) {

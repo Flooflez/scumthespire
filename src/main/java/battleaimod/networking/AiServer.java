@@ -157,6 +157,14 @@ public class AiServer {
 
                         if (BattleAiMod.battleAiController != null && BattleAiMod.battleAiController
                                 .isDone()) {
+
+                            if(BattleAiMod.battleAiController.fitnessFailed){
+                                out.writeUTF("FAILED");
+                                out.writeUTF(doneString);
+                                LudicrousSpeedMod.controller = BattleAiMod.battleAiController = null;
+                                continue;
+                            }
+
                             JsonObject jsonToSend = new JsonObject();
                             JsonArray commands = commandsForStateNode(BattleAiMod.battleAiController.bestEnd, true);
 

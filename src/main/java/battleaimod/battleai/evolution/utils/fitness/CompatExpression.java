@@ -83,7 +83,7 @@ public class CompatExpression extends AbstractFitness {
     }
 
     private static String replacePow(String expr) {
-        Pattern pattern = Pattern.compile("pow\\(([^,]+),([^\\)]+)\\)");
+        Pattern pattern = Pattern.compile("pow\\(([^,]+),([^)]+)\\)");
         Matcher matcher = pattern.matcher(expr);
 
         StringBuffer sb = new StringBuffer();
@@ -98,5 +98,8 @@ public class CompatExpression extends AbstractFitness {
         return sb.toString();
     }
 
-
+    @Override
+    public String toString() {
+        return jeneticsE;
+    }
 }

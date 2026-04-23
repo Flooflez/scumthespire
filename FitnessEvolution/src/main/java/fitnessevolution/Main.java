@@ -46,11 +46,20 @@ public final class Main {
     public static void main(String[] args) {
         try {
             CliArgs cli = parseArgs(args);
+
+            // ----------------------------
+            // SET ROOT DIRECTORY (NEW)
+            // ----------------------------
+            if (cli.rootDir != null) {
+                Config.configure(cli.rootDir);
+            }
+
             if (cli.poll) {
                 new PollLoop(cli.runId, cli.baseSeed, cli.pollIntervalMs).run();
             } else {
                 runOneShot(cli);
             }
+
         } catch (IllegalArgumentException | IllegalStateException e) {
             System.err.println("error: " + e.getMessage());
             System.exit(2);
@@ -104,7 +113,7 @@ public final class Main {
     // ---- arg parsing ------------------------------------------------------
 
     private record CliArgs(
-        String runId, long baseSeed, boolean poll, long pollIntervalMs
+        String runId, long baseSeed, boolean poll, long pollIntervalMs, Path rootDir
     ) {}
 
     private static CliArgs parseArgs(String[] args) {
@@ -112,6 +121,7 @@ public final class Main {
         long baseSeed = Config.DEFAULT_SEED;
         boolean poll = false;
         long pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
+        Path rootDir = null;
         for (String a : args) {
             if (a.equals("--poll")) {
                 poll = true;
@@ -134,9 +144,11 @@ public final class Main {
                     throw new IllegalArgumentException(
                         "bad --poll-interval-ms value: " + a, e);
                 }
+            } else if (a.startsWith("--root=")) {
+                rootDir = Path.of(a.substring("--root=".length()));
             }
         }
-        return new CliArgs(runId, baseSeed, poll, pollIntervalMs);
+        return new CliArgs(runId, baseSeed, poll, pollIntervalMs, rootDir);
     }
 
     private static void appendLog(String message) throws IOException {

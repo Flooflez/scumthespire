@@ -7,9 +7,11 @@ import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import battleaimod.BattleAiMod;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
 
+import static battleaimod.battleai.evolution.EvolutionManager.hasTriggeredThisTurn;
+
 public class AutoPlayController implements PostUpdateSubscriber {
 
-    private boolean hasTriggeredThisTurn = false;
+
 
 
     private boolean inCombat() {

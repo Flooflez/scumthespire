@@ -52,6 +52,7 @@ public class BattleAiController implements Controller {
 
     public int startingHealth;
     public boolean isDone = false;
+    public boolean fitnessFailed = false;
     public final SaveState startingState;
     public int expectedDamage = 0;
     private boolean initialized;
@@ -239,17 +240,16 @@ public class BattleAiController implements Controller {
     private double getFitness(StateNode start, StateNode end, List<AbstractCard> cardsPlayed) {
         ValueFunctionManager.initFuncValues(start.saveState, end.saveState, cardsPlayed);
 
-//        double damageTaken = StateNode.getPlayerDamage(end);
-//        double damageDealt = ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState);
-//        double remainingHP = ValueFunctions.getTotalMonsterHealth(end.saveState);
-//        int remainingMonsters = ValueFunctions.getAliveMonsterCount(end.saveState);
-//
-//        double fitness = (damageDealt * 2.0)
-//                - (damageTaken * 5.0)
-//                - (remainingHP * 1.0)
-//                - (remainingMonsters * 10.0);
-
-        return currentFitness.evaluate();
+        double result = 0;
+        try{
+            result = currentFitness.evaluate();
+        }catch (Exception e){
+            isDone = true;
+            bestEnd = end;
+            fitnessFailed = true;
+            FileLogger.logError("fitness failed: " + e.getMessage());
+        }
+        return result;
     }
 
 
@@ -270,9 +270,11 @@ public class BattleAiController implements Controller {
             }
 
             if (!initialized) {
+                FileLogger.log("Init!");
                 initialized = true;
                 isDone = false;
                 bestEnd = null;
+                fitnessFailed = false;
                 //shouldRunEndCommand = false;
                 finalSequences = new ArrayList<>();
 

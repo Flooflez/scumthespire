@@ -116,11 +116,15 @@ public class BattleAiMod implements PostInitializeSubscriber, PostUpdateSubscrib
     static Socket serverGameSocket = null;
     public static SpireConfig optionsConfig;
 
+    public static EvolutionManager evolutionManager;
+
     public BattleAiMod() {
         BaseMod.subscribe(this);
         BaseMod.subscribe(new LudicrousSpeedMod());
         BaseMod.subscribe(new AutoPlayController());
-        BaseMod.subscribe(new EvolutionManager());
+
+        evolutionManager = new EvolutionManager();
+        BaseMod.subscribe(evolutionManager);
 
         BaseMod.logger.log(Level.INFO, "BattleAIMod constructor");
 
