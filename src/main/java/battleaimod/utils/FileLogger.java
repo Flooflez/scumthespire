@@ -13,7 +13,7 @@ public class FileLogger {
     private static final Object lock = new Object();
     private static volatile boolean initialized = false;
 
-    private static volatile boolean enabled = true;
+    private static volatile boolean enabled = false;
 
     // Format for log messages
     private static final DateTimeFormatter logFormatter =

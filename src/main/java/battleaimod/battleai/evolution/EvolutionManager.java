@@ -240,6 +240,10 @@ public class EvolutionManager implements PostUpdateSubscriber {
                 System.out.println("Sorting and Evolving next gen");
                 //sort
                 Collections.sort(population);
+
+                //write temp just in case of program crash
+                writePopulationToFile("NewFitnessFunctions.txt");
+
                 //evolve next gen
                 evolvePopulation();
 

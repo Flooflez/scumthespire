@@ -15,7 +15,7 @@ public final class Config {
 
     private static Path baseDir = Path.of(".");
 
-    public static final int POPULATION_SIZE = 20;
+    public static final int POPULATION_SIZE = 15;
     public static final int MAX_DEPTH = 7;
     public static final long DEFAULT_SEED = 42L;
     public static final String DEFAULT_RUN_ID = "default";
