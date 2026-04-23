@@ -9,7 +9,7 @@ Branch: **`2-level-GP-Jenetics`** on `Flooflez/scumthespire`.
 From `FitnessEvolution/`:
 
 ```bash
-mvn test      # expect: Tests run: 31, Failures: 0  →  BUILD SUCCESS
+mvn test      # expect: Tests run: 36, Failures: 0  →  BUILD SUCCESS
 mvn package   # produces target/FitnessEvolution.jar
 ```
 
@@ -120,7 +120,97 @@ RNG seed for each call is computed as `baseSeed + step` where `step` is the curr
 | Smoke-test engine without your mod | `mvn -q exec:java -Dexec.mainClass=fitnessevolution.OfflineMockRun` |
 | Full docs | [`README.md`](README.md) |
 
-## 9. First-run sanity check (before wiring to your mod)
+## 9. Poll mode — `--poll`
+
+Instead of calling the jar once per generation, you can start it as a
+**long-running daemon** that watches `ipc/ModOutput.txt` for a `READY`
+flag and processes each handshake automatically. This is the
+"set-it-and-forget-it" option: your mod just reads/writes the IPC files;
+we handle the loop.
+
+### Start
+
+```bash
+java -jar target/FitnessEvolution.jar --poll --run-id=<id>
+# optional: --poll-interval-ms=100   (default 100 ms)
+# optional: --seed=<long>            (default 42)
+```
+
+`--run-id` behaves the same as in one-shot mode (step counter in
+`runs/<id>.step`, used to derive the per-iteration RNG seed).
+
+### The handshake (READY on last line, symmetric wipe)
+
+Each cycle involves both files; each file has exactly one writer at a
+time so no locking is needed:
+
+```
+┌─ mod writes ipc/ModOutput.txt ──────────────────────────────┐
+│   <FITNESS=... / expr lines>                                 │
+│   READY                ← must be the LAST non-blank line     │
+└──────────────────────────────────────────────────────────────┘
+                          ▼
+  we poll (every --poll-interval-ms), see READY on last line
+                          ▼
+  we read + process (warmup / evolve / truncate per §2)
+                          ▼
+┌─ we write ipc/JeneticsOutput.txt (atomic rename) ───────────┐
+│   <20 MathExpr lines>                                        │
+│   READY                ← our last line                       │
+└──────────────────────────────────────────────────────────────┘
+                          ▼
+  we truncate ipc/ModOutput.txt to empty
+                          ▼
+  mod polls JeneticsOutput, sees READY on last line
+                          ▼
+  mod reads the 20 expressions, truncates JeneticsOutput to empty,
+  runs 20 battles, writes next ipc/ModOutput.txt with fresh data +
+  READY on last line ──────── (repeat)
+```
+
+### Mod-side responsibilities under `--poll`
+
+1. **Write `READY` as the last non-blank line of `ModOutput.txt`.** Do
+   not flush `READY` before the rest of the content. Either
+   (a) write data first and `READY` last with a final flush, or (b)
+   write to `ModOutput.txt.tmp` and rename — either works because we
+   use last-line detection.
+2. **Poll `JeneticsOutput.txt`** for `READY` on its last non-blank line.
+3. **After reading**, truncate `JeneticsOutput.txt` to empty. This is
+   your half of the symmetric wipe — it prevents stale-READY bugs if
+   something goes wrong on either side.
+4. **Never write to `JeneticsOutput.txt`** other than truncating.
+5. **Never read `ModOutput.txt`** after writing it — it's our file to
+   read and wipe.
+
+### Stop
+
+- **Foreground** (typical): Ctrl-C. We catch SIGINT, finish the current
+  iteration cleanly, and exit 0.
+- **Background**: `kill <pid>` (SIGTERM). Same behaviour.
+- A second Ctrl-C / SIGKILL forces immediate termination.
+
+### Error handling in the loop
+
+Malformed ModOutput (parse error, non-finite fitness, unparseable
+expression, zero FITNESS pairs) is **not fatal** in poll mode:
+
+- The raw content is logged to `logs/evolution_log.txt` + stderr
+- `ModOutput.txt` is truncated so the bad READY isn't re-processed in
+  a loop
+- The step counter does **not** advance
+- The daemon keeps polling; next valid READY proceeds normally
+
+IO errors (disk full, permission denied) are fatal: we log and exit 3.
+
+### Notes
+
+- Poll interval of 100 ms adds at most ~100 ms of latency per handshake.
+  Battles take seconds, so this is negligible.
+- `END` as a line in ModOutput is treated as malformed input in poll
+  mode — logged, wiped, ignored. Use Ctrl-C / SIGTERM to stop instead.
+
+## 10. First-run sanity check (before wiring to your mod)
 
 ```bash
 # Seed with a template
