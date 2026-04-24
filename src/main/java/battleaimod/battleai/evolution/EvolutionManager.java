@@ -57,6 +57,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     public static boolean hasTriggeredThisTurn = false;
 
+    private int iterations = 0;
+
     private enum FitnessType{
         WEIGHTED_SUM,
         EXPRESSION_TREE;
@@ -281,6 +283,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
                 evolveWeightedSum();
                 break;
         }
+        iterations++;
     }
 
     private void evolveWeightedSum(){
@@ -485,6 +488,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     private void writePopulationToFile(String fileName) {
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(fileName))) {
+            writer.write("Iterations: "+iterations);
+            writer.newLine();
 
             for (AbstractFitness individual : population) {
                 writer.write(individual.toString());
