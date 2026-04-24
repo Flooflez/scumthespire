@@ -2,19 +2,17 @@ package battleaimod.patches;
 
 import basemod.ReflectionHacks;
 import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
+import com.evacipated.cardcrawl.modthespire.lib.SpirePostfixPatch;
 import com.megacrit.cardcrawl.actions.AbstractGameAction;
 import com.megacrit.cardcrawl.actions.animations.VFXAction;
-import com.megacrit.cardcrawl.actions.common.DiscardAction;
-import com.megacrit.cardcrawl.actions.common.DiscardSpecificCardAction;
-import com.megacrit.cardcrawl.actions.common.DrawCardAction;
-import com.megacrit.cardcrawl.actions.common.EmptyDeckShuffleAction;
-import com.megacrit.cardcrawl.actions.common.ExhaustSpecificCardAction;
+import com.megacrit.cardcrawl.actions.common.*;
 import com.megacrit.cardcrawl.actions.utility.UseCardAction;
 import com.megacrit.cardcrawl.actions.utility.WaitAction;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.cards.Soul;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.core.AbstractCreature;
+import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 
 public class FastActionPatches {
 
@@ -275,6 +273,86 @@ public class FastActionPatches {
 
             __instance.drawScale += (__instance.targetDrawScale - __instance.drawScale) * CARD_LERP_STRENGTH;
             __instance.angle += (__instance.targetAngle - __instance.angle) * CARD_LERP_STRENGTH;
+        }
+    }
+
+
+
+
+    @SpirePatch(
+            clz = UseCardAction.class,
+            method = "update"
+    )
+    public static class FastUseCardActionUpdatePatch {
+        @SpirePostfixPatch
+        public static void Postfix(UseCardAction __instance) {
+            if (__instance.isDone) return;
+
+            float duration = ReflectionHacks.getPrivate(
+                    __instance,
+                    com.megacrit.cardcrawl.actions.AbstractGameAction.class,
+                    "duration"
+            );
+
+            // After the important "duration == 0.15F" block has run,
+            // reduce the remaining animation time.
+            if (duration < 0.15f && duration > 0.01f) {
+                ReflectionHacks.setPrivate(
+                        __instance,
+                        com.megacrit.cardcrawl.actions.AbstractGameAction.class,
+                        "duration",
+                        0.001f
+                );
+            }
+        }
+    }
+
+    @SpirePatch(
+            clz = DamageAction.class,
+            method = "update"
+    )
+    public static class FastDamageActionUpdatePatch {
+        public static void Postfix(DamageAction __instance) {
+            if (__instance.isDone) return;
+
+            try {
+                float duration = ReflectionHacks.getPrivate(
+                        __instance,
+                        AbstractGameAction.class,
+                        "duration"
+                );
+
+                if (duration < 0.1f && duration > 0.01f) {
+                    ReflectionHacks.setPrivate(
+                            __instance,
+                            AbstractGameAction.class,
+                            "duration",
+                            0.001f
+                    );
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+
+    private static final float GAME_EFFECT_MAX_DURATION = 0.0002f;
+
+    @SpirePatch(
+            clz = AbstractGameEffect.class,
+            method = "update"
+    )
+    public static class FastAbstractGameEffectPatch {
+        public static void Prefix(AbstractGameEffect __instance) {
+            if (__instance == null) return;
+
+            if (__instance.duration > GAME_EFFECT_MAX_DURATION) {
+                __instance.duration = GAME_EFFECT_MAX_DURATION;
+            }
+
+            if (__instance.startingDuration > GAME_EFFECT_MAX_DURATION) {
+                __instance.startingDuration = GAME_EFFECT_MAX_DURATION;
+            }
         }
     }
 }
