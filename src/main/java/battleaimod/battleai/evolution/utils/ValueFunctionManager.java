@@ -25,6 +25,7 @@ public class ValueFunctionManager {
         DAMAGE_RECEIVED,
         MONSTERS_REMAINING,
         SUM_MONSTER_HEALTH,
+        AVG_MONSTER_HEALTH,
         POWERS_PLAYED,
         SUM_ENEMY_POISON,
         SUM_ENEMY_WEAK,
@@ -75,6 +76,8 @@ public class ValueFunctionManager {
 
         addValueToMap(Variables.SUM_MONSTER_HEALTH, getTotalMonsterHealth());
 
+        addValueToMap(Variables.AVG_MONSTER_HEALTH, getTotalMonsterHealth());
+
         addValueToMap(Variables.MONSTERS_REMAINING, getAliveMonsterCount());
 
         addValueToMap(Variables.DAMAGE_RECEIVED, getPlayerDamage());
@@ -124,6 +127,15 @@ public class ValueFunctionManager {
                 })
                 .reduce(Integer::sum)
                 .get();
+    }
+
+    public static double getAverageMonsterHealth() {
+        return getAverageMonsterHealth(endState);
+    }
+
+    public static double getAverageMonsterHealth(SaveState s) {
+        int size = getAliveMonsterCount();
+        return size > 0 ? getTotalMonsterHealth() / (double) size : 0.0;
     }
 
     private static boolean isAwakenedOneAwakened(MonsterState state) {
