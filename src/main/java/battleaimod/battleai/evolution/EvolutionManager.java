@@ -5,6 +5,7 @@ import battleaimod.battleai.evolution.utils.ValueFunctionManager;
 import battleaimod.battleai.evolution.utils.fitness.AbstractFitness;
 import battleaimod.battleai.evolution.utils.fitness.CompatExpression;
 import battleaimod.battleai.evolution.utils.fitness.WeightedSumFitness;
+import battleaimod.patches.FastActionPatches;
 import battleaimod.utils.CommandAutomator;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -15,6 +16,7 @@ import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
+import ludicrousspeed.LudicrousSpeedMod;
 import savestate.SaveState;
 import savestate.monsters.MonsterState;
 
@@ -73,6 +75,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
         if(waitingForDeckUpdate){
             if(checkDeckUpdated()){
+                toggleFast(true);
                 startingHp = AbstractDungeon.player.currentHealth;
                 waitingForDeckUpdate = false;
                 CommandAutomator.restartCurrentFight();
@@ -159,37 +162,35 @@ public class EvolutionManager implements PostUpdateSubscriber {
         waitingForDeckUpdate = true;
 
         ValueFunctionManager.writeVariablesToFile("ipc/FeatureBank.txt");
-
-        toggleFast();
     }
 
-    private void toggleFast() {
+    private void toggleFast(boolean isFast) {
         if(!ALLOW_FAST_MODE) return;
 
-        if(!currentlyFast){
+        if(isFast){
             //BattleAiMod.goFast = true;
             //SaveStateMod.shouldGoFast = true;
             //LudicrousSpeedMod.plaidMode = true;
-            Settings.ACTION_DUR_XFAST = 0.001F;
-            Settings.ACTION_DUR_FASTER = 0.002F;
-            Settings.ACTION_DUR_FAST = 0.0025F;
-            Settings.ACTION_DUR_MED = 0.005F;
-            Settings.ACTION_DUR_LONG = 0.01F;
-            Settings.ACTION_DUR_XLONG = 0.015F;
+            Settings.ACTION_DUR_XFAST = 0.0001F;
+            Settings.ACTION_DUR_FASTER = 0.0002F;
+            Settings.ACTION_DUR_FAST = 0.00025F;
+            Settings.ACTION_DUR_MED = 0.0005F;
+            Settings.ACTION_DUR_LONG = 0.001F;
+            Settings.ACTION_DUR_XLONG = 0.0015F;
+            FastActionPatches.enableFastMode();
         }
         else {
-            //BattleAiMod.goFast = false;
-            //SaveStateMod.shouldGoFast = false;
-            //LudicrousSpeedMod.plaidMode = false;
+//            //BattleAiMod.goFast = false;
+//            //SaveStateMod.shouldGoFast = false;
+//            LudicrousSpeedMod.plaidMode = false;
             Settings.ACTION_DUR_XFAST = 0.1F;
             Settings.ACTION_DUR_FASTER = 0.2F;
             Settings.ACTION_DUR_FAST = 0.25F;
             Settings.ACTION_DUR_MED = 0.5F;
             Settings.ACTION_DUR_LONG = 1.0F;
             Settings.ACTION_DUR_XLONG = 1.5F;
+                FastActionPatches.disableFastMode();
         }
-        currentlyFast = !currentlyFast;
-
 
     }
 
@@ -261,7 +262,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
                 Collections.sort(population);
                 writePopulationToFile("NewFitnessFunctions.txt");
                 simRunning = false;
-                toggleFast();
+                toggleFast(false);
             }
         }
         else {

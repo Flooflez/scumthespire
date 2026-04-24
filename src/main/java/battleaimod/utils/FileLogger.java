@@ -14,6 +14,7 @@ public class FileLogger {
     private static volatile boolean initialized = false;
 
     private static volatile boolean enabled = false;
+    private static volatile boolean errorEnabled = true;
 
     // Format for log messages
     private static final DateTimeFormatter logFormatter =
@@ -67,7 +68,7 @@ public class FileLogger {
     }
 
     public static void logError(String message) {
-        if(!enabled) return;
+        if(!errorEnabled) return;
         init();
         synchronized (lock) {
             writer.println(formatMessage("ERROR", message));
