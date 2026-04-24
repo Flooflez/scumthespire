@@ -81,7 +81,7 @@ public class ValueFunctionManager {
 
         addValueToMap(Variables.SUM_MONSTER_HEALTH, getTotalMonsterHealth());
 
-        addValueToMap(Variables.AVG_MONSTER_HEALTH, getTotalMonsterHealth());
+        addValueToMap(Variables.AVG_MONSTER_HEALTH, getAverageMonsterHealth());
 
         addValueToMap(Variables.MONSTERS_REMAINING, getAliveMonsterCount());
 
@@ -113,6 +113,30 @@ public class ValueFunctionManager {
     }
 
     /**
+     * Counts the number of monsters currently alive.
+     * Awakened One still counts as alive before its second form, even at 0 HP.
+     */
+    public static int getAliveMonsterCount() {
+        if (endState == null ||
+                endState.curMapNodeState == null ||
+                endState.curMapNodeState.monsterData == null) {
+            return 0;
+        }
+
+        return (int) endState.curMapNodeState.monsterData.stream()
+                .filter(monster -> monster != null && isMonsterEffectivelyAlive(monster))
+                .count();
+    }
+
+    private static boolean isMonsterEffectivelyAlive(MonsterState monster) {
+        if (monster.currentHealth > 0) {
+            return true;
+        }
+
+        return "AwakenedOne".equals(monster.id) && isAwakenedOneNotAwakened(monster);
+    }
+
+    /**
      * Adds up monster health and accounts for powers that alter the effective health of the enemy
      * such as barricade and unawakened.
      */
@@ -128,7 +152,7 @@ public class ValueFunctionManager {
                             .anyMatch(power -> power.powerId
                                     .equals("Barricade"))) {
                         return monster.currentHealth + monster.currentBlock;
-                    } else if ("AwakenedOne".equals(monster.id) && !isAwakenedOneAwakened(monster)) {
+                    } else if ("AwakenedOne".equals(monster.id) && isAwakenedOneNotAwakened(monster)) {
                         FileLogger.log("AwakenedOne is NOT awakened, adding health!");
                         return monster.currentHealth + monster.maxHealth;
                     }
@@ -147,13 +171,13 @@ public class ValueFunctionManager {
         return size > 0 ? getTotalMonsterHealth() / (double) size : 0.0;
     }
 
-    private static boolean isAwakenedOneAwakened(MonsterState state) {
+    private static boolean isAwakenedOneNotAwakened(MonsterState state) {
 
         byte nextMove = getMonsterStateNextMove(state);
 
-        return nextMove == 5 || // DARK_ECHO
-                nextMove == 6 || // SLUDGE
-                nextMove == 8;   // TACKLE
+        return nextMove != 5 && // DARK_ECHO
+                nextMove != 6 && // SLUDGE
+                nextMove != 8;   // TACKLE
     }
 
     private static byte getMonsterStateNextMove(MonsterState state) {
@@ -164,20 +188,6 @@ public class ValueFunctionManager {
         );
     }
 
-    /**
-     * Counts the number of monsters currently alive.
-     */
-    public static int getAliveMonsterCount() {
-        if (endState == null ||
-                endState.curMapNodeState == null ||
-                endState.curMapNodeState.monsterData == null) {
-            return 0;
-        }
-
-        return (int) endState.curMapNodeState.monsterData.stream()
-                .filter(monster -> monster != null && monster.currentHealth > 0)
-                .count();
-    }
 
     public static int getTotalDamageDealt() {
         return ValueFunctions.getTotalMonsterHealth(startState)

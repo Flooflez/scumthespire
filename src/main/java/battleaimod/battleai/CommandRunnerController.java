@@ -70,11 +70,17 @@ public class CommandRunnerController implements Controller {
             Command command = bestPathRunner.next();
             if (command != null) {
                 foundCommand = true;
-                command.execute();
-                if(command instanceof CardCommand){
-                    AbstractCard card = (AbstractCard)AbstractDungeon.player.hand.group.get(((CardCommand) command).cardIndex);
-                    EvolutionManager.addCardPlayed(card);
+                try{
+                    command.execute();
+                    if(command instanceof CardCommand){
+                        AbstractCard card = (AbstractCard)AbstractDungeon.player.hand.group.get(((CardCommand) command).cardIndex);
+                        EvolutionManager.addCardPlayed(card);
+                    }
+                }catch (Exception e){
+                    System.err.println("Command failed to execute: " + e.getMessage());
+                    e.printStackTrace();
                 }
+
 
             } else {
                 foundCommand = true;
