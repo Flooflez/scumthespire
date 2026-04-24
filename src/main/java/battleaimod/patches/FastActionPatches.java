@@ -11,6 +11,7 @@ import com.megacrit.cardcrawl.actions.common.EmptyDeckShuffleAction;
 import com.megacrit.cardcrawl.actions.common.ExhaustSpecificCardAction;
 import com.megacrit.cardcrawl.actions.utility.UseCardAction;
 import com.megacrit.cardcrawl.actions.utility.WaitAction;
+import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.cards.Soul;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.core.AbstractCreature;
@@ -26,6 +27,12 @@ public class FastActionPatches {
 
     public static void enableFastMode() {
         Settings.FAST_MODE = true;
+        Settings.ACTION_DUR_XFAST = 0.0001F;
+        Settings.ACTION_DUR_FASTER = 0.0002F;
+        Settings.ACTION_DUR_FAST = 0.00025F;
+        Settings.ACTION_DUR_MED = 0.0005F;
+        Settings.ACTION_DUR_LONG = 0.001F;
+        Settings.ACTION_DUR_XLONG = 0.0015F;
     }
 
     public static void disableFastMode() {
@@ -250,6 +257,24 @@ public class FastActionPatches {
                 }
             } catch (Exception ignored) {
             }
+        }
+    }
+
+    private static final float CARD_LERP_STRENGTH = 0.85f;
+
+    @SpirePatch(
+            clz = AbstractCard.class,
+            method = "update"
+    )
+    public static class FastCardLerpPatch {
+        public static void Postfix(AbstractCard __instance) {
+            if (__instance == null) return;
+
+            __instance.current_x += (__instance.target_x - __instance.current_x) * CARD_LERP_STRENGTH;
+            __instance.current_y += (__instance.target_y - __instance.current_y) * CARD_LERP_STRENGTH;
+
+            __instance.drawScale += (__instance.targetDrawScale - __instance.drawScale) * CARD_LERP_STRENGTH;
+            __instance.angle += (__instance.targetAngle - __instance.angle) * CARD_LERP_STRENGTH;
         }
     }
 }

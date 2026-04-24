@@ -171,12 +171,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
             //BattleAiMod.goFast = true;
             //SaveStateMod.shouldGoFast = true;
             //LudicrousSpeedMod.plaidMode = true;
-            Settings.ACTION_DUR_XFAST = 0.0001F;
-            Settings.ACTION_DUR_FASTER = 0.0002F;
-            Settings.ACTION_DUR_FAST = 0.00025F;
-            Settings.ACTION_DUR_MED = 0.0005F;
-            Settings.ACTION_DUR_LONG = 0.001F;
-            Settings.ACTION_DUR_XLONG = 0.0015F;
+
             FastActionPatches.enableFastMode();
         }
         else {
