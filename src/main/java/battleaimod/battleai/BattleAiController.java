@@ -193,7 +193,7 @@ public class BattleAiController implements Controller {
         FileLogger.log("Damage taken: " + StateNode.getPlayerDamage(end));
         FileLogger.log("Damage Dealt: " + ValueFunctions.getTotalDamageDealt(start.saveState, end.saveState));
         FileLogger.log("Monster HP: " + ValueFunctions.getTotalMonsterHealth(end.saveState));
-        FileLogger.log("Score: " + getFitness(start, end, finalSequence.getCardsAsAbstractCard()));
+        FileLogger.log("Score: " + getFitness(start, end, finalSequence.getCardsAsAbstractCard(), new ArrayList<>(AbstractDungeon.player.hand.group)));
         FileLogger.log("Final Cards: ");
         for(CardAction a : finalSequence.getCards()){
             FileLogger.log("   "+a.getMainCard().toString());
@@ -238,8 +238,8 @@ public class BattleAiController implements Controller {
         }
     }
 
-    private double getFitness(StateNode start, StateNode end, List<AbstractCard> cardsPlayed) {
-        ValueFunctionManager.initFuncValues(start.saveState, end.saveState, cardsPlayed);
+    private double getFitness(StateNode start, StateNode end, List<AbstractCard> cardsPlayed, List<AbstractCard> endHand) {
+        ValueFunctionManager.initFuncValues(start.saveState, end.saveState, cardsPlayed, endHand);
 
         double result = 0;
         try{
@@ -350,7 +350,7 @@ public class BattleAiController implements Controller {
                         //FileLogger.log("last command: " +currentState.lastCommand);
                         //FileLogger.log("size of node list: "+ stateNodesToGetToNode(currentState).size());
 
-                        double turnFitness = getFitness(startStateNode, currentState, currentCardSeq.getCardsAsAbstractCard());
+                        double turnFitness = getFitness(startStateNode, currentState, currentCardSeq.getCardsAsAbstractCard(), new ArrayList<>(AbstractDungeon.player.hand.group));
                         FileLogger.log("fitness: "+turnFitness);
 
                         currentCardSeq.setFitness(turnFitness);

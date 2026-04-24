@@ -45,7 +45,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
     private int startingHp;
     private int startingTurn;
 
-    private static List<AbstractCard> cardsPlayed = new ArrayList<>();
+    private static final List<AbstractCard> cardsPlayed = new ArrayList<>();
 
     private final boolean ALLOW_FAST_MODE = true;
     private boolean currentlyFast = false;

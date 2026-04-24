@@ -37,6 +37,7 @@ public class ValueFunctionManager {
         SUM_PLAYER_DEX,
         EFFECTIVE_HP,
         SUM_ORBS,
+        HAND_SPACE_CLOG,
         ;
     }
 
@@ -44,6 +45,7 @@ public class ValueFunctionManager {
     private static SaveState startState;
     private static SaveState endState;
     private static List<AbstractCard> cardsPlayed;
+    private static List<AbstractCard> endHand;
 
     private static final Map<String, Integer> monsterPowerTotals = new HashMap<>();
     private static boolean monsterCacheValid = false;
@@ -64,10 +66,11 @@ public class ValueFunctionManager {
         }
     }
 
-    public static void initFuncValues(SaveState startState, SaveState endState, List<AbstractCard> cardsPlayed){
+    public static void initFuncValues(SaveState startState, SaveState endState, List<AbstractCard> cardsPlayed, List<AbstractCard> endHand){
         ValueFunctionManager.startState = startState;
         ValueFunctionManager.endState = endState;
         ValueFunctionManager.cardsPlayed = cardsPlayed;
+        ValueFunctionManager.endHand = endHand;
 
         ValueFunctionManager.monsterCacheValid = false;
         ValueFunctionManager.playerCacheValid = false;
@@ -96,6 +99,8 @@ public class ValueFunctionManager {
 
         addValueToMap(Variables.EFFECTIVE_HP, getPlayerEffectiveHP());
         addValueToMap(Variables.SUM_ORBS, getSumOrbs());
+
+        addValueToMap(Variables.HAND_SPACE_CLOG, getHandSpaceClog());
 
     }
 
@@ -248,5 +253,17 @@ public class ValueFunctionManager {
 
     public static int getSumOrbs(){
         return endState.playerState.orbs.size();
+    }
+
+    public static int getHandSpaceClog(){
+        int sum = 0;
+        for (AbstractCard c : endHand){
+            if(c.type == AbstractCard.CardType.CURSE ||
+                    c.type == AbstractCard.CardType.STATUS ||
+                    c.cost == -2){
+                sum++;
+            }
+        }
+        return sum;
     }
 }
