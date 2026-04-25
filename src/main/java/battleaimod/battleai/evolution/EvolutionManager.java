@@ -30,6 +30,16 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     private final int MIN_POPULATION = 10;
     private final int ELITES = 3;
+    /**
+     * Hard turn cap on simulated battles. Without this, evolved expressions
+     * that stall (e.g. leave the enemy at 1 HP and stop attacking) never
+     * trigger {@link #combatOver()}, so {@link #calculateFitnessFitness()} is
+     * never called for them. Their fitness stays at the {@link AbstractFitness}
+     * default of 0, which beats almost any realistic win — and selection then
+     * concentrates on stalling. Capping the battle forces every individual to
+     * be scored, so the existing -2*turnCount penalty actually fires.
+     */
+    private static final int MAX_TURNS = 100;
 
     private SaveState startingState;
 
@@ -115,7 +125,9 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
     //TODO: check if this works when combat ends and in reward screen
     private boolean combatOver() {
-        return isDead() || (isInCombat() && (AbstractDungeon.getCurrRoom().isBattleOver));
+        return isDead()
+                || (isInCombat() && AbstractDungeon.getCurrRoom().isBattleOver)
+                || (isInCombat() && GameActionManager.turn >= MAX_TURNS);
     }
 
     private boolean isInCombat() {
