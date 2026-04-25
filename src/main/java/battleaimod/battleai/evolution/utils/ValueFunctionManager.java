@@ -119,16 +119,20 @@ public class ValueFunctionManager {
      * Counts the number of monsters currently alive.
      * Awakened One still counts as alive before its second form, even at 0 HP.
      */
-    public static int getAliveMonsterCount() {
-        if (endState == null ||
-                endState.curMapNodeState == null ||
-                endState.curMapNodeState.monsterData == null) {
+    public static int getAliveMonsterCount(SaveState state) {
+        if (state == null ||
+                state.curMapNodeState == null ||
+                state.curMapNodeState.monsterData == null) {
             return 0;
         }
 
-        return (int) endState.curMapNodeState.monsterData.stream()
+        return (int) state.curMapNodeState.monsterData.stream()
                 .filter(monster -> monster != null && isMonsterEffectivelyAlive(monster))
                 .count();
+    }
+
+    public static int getAliveMonsterCount() {
+        return getAliveMonsterCount(endState);
     }
 
     private static boolean isMonsterEffectivelyAlive(MonsterState monster) {
@@ -193,8 +197,8 @@ public class ValueFunctionManager {
 
 
     public static int getTotalDamageDealt() {
-        return ValueFunctions.getTotalMonsterHealth(startState)
-                - ValueFunctions.getTotalMonsterHealth(endState);
+        return ValueFunctionManager.getTotalMonsterHealth(startState)
+                - ValueFunctionManager.getTotalMonsterHealth(endState);
     }
 
     public static int getPlayerDamage() {

@@ -24,6 +24,7 @@ import savestate.monsters.MonsterState;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -486,14 +487,20 @@ public class EvolutionManager implements PostUpdateSubscriber {
     }
 
     private void writePopulationToFile(String fileName) {
-        try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(fileName))) {
-            writer.write("Iterations: "+iterations);
+        try (BufferedWriter writer = Files.newBufferedWriter(
+                Paths.get(fileName),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND
+        )) {
+            writer.write("Iterations: " + iterations);
             writer.newLine();
 
             for (AbstractFitness individual : population) {
                 writer.write(individual.toString());
                 writer.newLine();
             }
+
+            writer.newLine(); // optional: separate runs
 
         } catch (IOException e) {
             throw new RuntimeException("Failed to write population to file: " + fileName, e);
@@ -510,9 +517,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
         int playerHealth = endState.getPlayerHealth();
         int healthLost = startingState.getPlayerHealth() - endState.getPlayerHealth();
         int turnCount = endState.turn;
-        int enemiesLeft = (int) endState.curMapNodeState.monsterData.stream()
-                .filter(monster -> monster != null && monster.currentHealth > 0)
-                .count();
+        int enemiesLeft = ValueFunctionManager.getAliveMonsterCount(endState);
         int enemyHealthLeft = ValueFunctionManager.getTotalMonsterHealth(endState);
 
 
