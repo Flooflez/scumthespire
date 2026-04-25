@@ -151,7 +151,7 @@ public final class GPEngine {
      * earlier entries (elites, then reproductions in birth order) win
      * collisions.
      */
-    private List<Genotype<ProgramGene<Double>>> dedupe(
+    List<Genotype<ProgramGene<Double>>> dedupe(
         List<Genotype<ProgramGene<Double>>> pop
     ) {
         Set<String> seen = new HashSet<>();

@@ -95,6 +95,50 @@ class GPEngineTest {
     }
 
     /**
+     * Hand dedupe a population where 5 of 8 entries share the same canonical
+     * expression. The first entry should pass through; the other 4 should be
+     * replaced (force-mutated, or random fallback) so the output has 8 distinct
+     * canonical expressions and the original size.
+     */
+    @Test
+    void dedupeReplacesDuplicatesWithDistinctIndividuals() {
+        GPEngine engine = new GPEngine(OpSet.OPS, terminals, 7, 20, 1L);
+        Genotype<ProgramGene<Double>> seed =
+            engine.initialPopulation(template, vars).get(0);
+        Genotype<ProgramGene<Double>> other =
+            engine.randomTrees(1).get(0);
+        Genotype<ProgramGene<Double>> other2 =
+            engine.randomTrees(1).get(0);
+        Genotype<ProgramGene<Double>> other3 =
+            engine.randomTrees(1).get(0);
+
+        List<Genotype<ProgramGene<Double>>> input = new ArrayList<>();
+        input.add(seed);
+        input.add(seed);
+        input.add(seed);
+        input.add(seed);
+        input.add(seed);
+        input.add(other);
+        input.add(other2);
+        input.add(other3);
+
+        List<Genotype<ProgramGene<Double>>> out = engine.dedupe(input);
+
+        assertEquals(input.size(), out.size(), "dedupe must preserve population size");
+        Set<String> canonicals = new HashSet<>();
+        for (Genotype<ProgramGene<Double>> g : out) {
+            canonicals.add(MathExprIO.serialize(g.gene().toTreeNode()));
+        }
+        assertEquals(out.size(), canonicals.size(),
+            "every output individual must have a distinct canonical expression");
+
+        String seedCanonical = MathExprIO.serialize(seed.gene().toTreeNode());
+        assertEquals(seedCanonical,
+            MathExprIO.serialize(out.get(0).gene().toTreeNode()),
+            "first occurrence of seed should pass through unchanged");
+    }
+
+    /**
      * With a strongly dominant individual, tournament selection concentrates on
      * the leader and crossover between two clones produces a clone child. The
      * dedupe pass must guarantee no duplicate canonical expressions ship from
