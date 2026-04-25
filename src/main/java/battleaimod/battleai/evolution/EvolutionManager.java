@@ -16,6 +16,7 @@ import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
+import com.megacrit.cardcrawl.vfx.ThoughtBubble;
 import ludicrousspeed.LudicrousSpeedMod;
 import savestate.SaveState;
 import savestate.monsters.MonsterState;
@@ -267,6 +268,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
             writeFitnessFunction();
             restartFight();
         }
+
+        AbstractDungeon.effectList.add(new ThoughtBubble(AbstractDungeon.player.dialogX, AbstractDungeon.player.dialogY, 5.0F, "Current Fitness Index: " + currentFitnessIndex, true));
 
         //TODO: test if actions that trigger after death still trigger on next run
         AbstractDungeon.actionManager.actions.clear();

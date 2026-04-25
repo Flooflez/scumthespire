@@ -233,11 +233,6 @@ public class BattleAiMod implements PostInitializeSubscriber, PostUpdateSubscrib
     }
 
     public void receivePostUpdate() {
-        if (steveMessage != null) {
-            String messageToDisplay = String.format(" %s... NL %s", MESSAGE_WORDS.getOrDefault(AbstractDungeon.player.chosenClass, "Processing"), steveMessage);
-            steveMessage = null;
-            AbstractDungeon.effectList.add(new ThoughtBubble(AbstractDungeon.player.dialogX, AbstractDungeon.player.dialogY, 1.5F, messageToDisplay, true));
-        }
 
         if (battleAiController == null && shouldStartAiFromServer) {
             shouldStartAiFromServer = false;
