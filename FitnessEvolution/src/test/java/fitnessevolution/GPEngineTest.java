@@ -13,8 +13,10 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -90,5 +92,33 @@ class GPEngineTest {
         GPEngine engine = new GPEngine(OpSet.OPS, terminals, 7, 20, 1L);
         List<Scored> tooFew = List.of();
         assertThrows(IllegalArgumentException.class, () -> engine.step(tooFew));
+    }
+
+    /**
+     * With a strongly dominant individual, tournament selection concentrates on
+     * the leader and crossover between two clones produces a clone child. The
+     * dedupe pass must guarantee no duplicate canonical expressions ship from
+     * step.
+     */
+    @Test
+    void stepProducesNoDuplicateCanonicalExpressions() {
+        GPEngine engine = new GPEngine(OpSet.OPS, terminals, 7, 20, 1L);
+        List<Genotype<ProgramGene<Double>>> pop = engine.initialPopulation(template, vars);
+
+        for (int gen = 0; gen < 5; gen++) {
+            List<Scored> scored = new ArrayList<>();
+            scored.add(new Scored(pop.get(0), 1_000.0));
+            for (int i = 1; i < pop.size(); i++) {
+                scored.add(new Scored(pop.get(i), 1.0));
+            }
+            pop = engine.step(scored);
+
+            Set<String> seen = new HashSet<>();
+            for (Genotype<ProgramGene<Double>> g : pop) {
+                String key = MathExprIO.serialize(g.gene().toTreeNode());
+                assertTrue(seen.add(key),
+                    "duplicate canonical expression at gen " + gen + ": " + key);
+            }
+        }
     }
 }
