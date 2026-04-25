@@ -39,7 +39,8 @@ public class ValueFunctionManager {
         SUM_ORBS,
         HAND_SPACE_CLOG,
         SUM_CURSE_EXHAUSTED,
-        SUM_CARD_EXHAUSTED
+        SUM_CARD_EXHAUSTED,
+        PLAYER_DEATH
         ;
     }
 
@@ -106,6 +107,8 @@ public class ValueFunctionManager {
 
         addValueToMap(Variables.SUM_CARD_EXHAUSTED, getSumCardExhausted());
         addValueToMap(Variables.SUM_CURSE_EXHAUSTED, getSumCurseExhausted());
+
+        addValueToMap(Variables.PLAYER_DEATH, getPlayerDeath());
     }
 
     private static void addValueToMap(Variables v, double d){
@@ -283,24 +286,24 @@ public class ValueFunctionManager {
 
     public static int getSumCardExhausted() {
         int count = countCardsInExhaust(endState, false);
-        FileLogger.log("Final SUM_CARD_EXHAUSTED count: " + count);
+        //FileLogger.log("Final SUM_CARD_EXHAUSTED count: " + count);
         return count;
     }
 
     public static int getSumCurseExhausted() {
         int count = countCardsInExhaust(endState, true);
-        FileLogger.log("Final SUM_CURSE_EXHAUSTED count: " + count);
+        //FileLogger.log("Final SUM_CURSE_EXHAUSTED count: " + count);
         return count;
     }
 
     private static int countCardsInExhaust(SaveState state, boolean countCursesAndStatuses) {
         if (state == null || state.playerState == null || state.playerState.exhaustPile == null) {
-            FileLogger.logWarning("Exhaust pile, playerState, or state is null. Returning 0.");
+            //FileLogger.logWarning("Exhaust pile, playerState, or state is null. Returning 0.");
             return 0;
         }
 
         int count = 0;
-        FileLogger.log("--- Scanning Exhaust Pile (Targeting Curses/Statuses: " + countCursesAndStatuses + ") ---");
+        //FileLogger.log("--- Scanning Exhaust Pile (Targeting Curses/Statuses: " + countCursesAndStatuses + ") ---");
 
         for (savestate.CardState cardState : state.playerState.exhaustPile) {
 
@@ -312,20 +315,24 @@ public class ValueFunctionManager {
             boolean isCurseOrStatus = (type == AbstractCard.CardType.CURSE || type == AbstractCard.CardType.STATUS);
 
             if (countCursesAndStatuses && isCurseOrStatus) {
-                FileLogger.log("  [+] Counted Curse/Status: " + actualCard.name);
+                //FileLogger.log("  [+] Counted Curse/Status: " + actualCard.name);
                 count++;
             } else if (!countCursesAndStatuses && !isCurseOrStatus) {
-                FileLogger.log("  [+] Counted Standard Card: " + actualCard.name);
+                //FileLogger.log("  [+] Counted Standard Card: " + actualCard.name);
                 count++;
             } else {
-                FileLogger.log("  [-] Skipped: " + actualCard.name + " (Type: " + type.name() + ")");
+                //FileLogger.log("  [-] Skipped: " + actualCard.name + " (Type: " + type.name() + ")");
             }
 
             // 3. CRITICAL FOR AI: Free the card to prevent memory leaks during simulations
             savestate.CardState.freeCard(actualCard);
         }
 
-        FileLogger.log("--- Finished Scanning. Total Found: " + count + " ---");
+        //FileLogger.log("--- Finished Scanning. Total Found: " + count + " ---");
         return count;
+    }
+
+    public static int getPlayerDeath(){
+        return endState.playerState.currentHealth <= 0 ? 1 : 0;
     }
 }
