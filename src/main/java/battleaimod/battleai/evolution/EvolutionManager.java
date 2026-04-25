@@ -329,9 +329,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
         File outFile = new File("ipc/ModOutput.txt");
         File inFile = new File("ipc/JeneticsOutput.txt");
 
-        // ----------------------------
-        // 1. WRITE POPULATION TO FILE
-        // ----------------------------
+        //Write file
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
             for (AbstractFitness individual : population) {
                 writer.write("FITNESS=" + individual.getFitnessFitness());
@@ -349,9 +347,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
             throw new RuntimeException("Failed to write population for evolution", e);
         }
 
-        // ----------------------------
-        // 2. WAIT FOR JENETICS RESPONSE
-        // ----------------------------
+        //Read
         while (true) {
             if (inFile.exists()) {
                 try {
@@ -364,6 +360,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
                     if (end > 0 && "READY".equals(lines.get(end - 1).trim())) {
                         List<AbstractFitness> newPopulation = new ArrayList<>();
+                        Set<String> seenExpressions = new HashSet<>();
 
                         for (int i = 0; i < end - 1; i++) {
                             String expr = lines.get(i).trim();
@@ -372,15 +369,14 @@ public class EvolutionManager implements PostUpdateSubscriber {
                                 continue;
                             }
 
-                            newPopulation.add(new CompatExpression(expr));
+                            if (seenExpressions.add(expr)) {
+                                newPopulation.add(new CompatExpression(expr));
+                            }
                         }
 
                         population.clear();
                         population.addAll(newPopulation);
 
-                        // ----------------------------
-                        // 3. CLEAR INPUT FILE
-                        // ----------------------------
                         try (BufferedWriter clearWriter = new BufferedWriter(new FileWriter(inFile, false))) {
                             clearWriter.write("");
                         }
