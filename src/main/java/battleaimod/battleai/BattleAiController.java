@@ -362,6 +362,14 @@ public class BattleAiController implements Controller {
                     if(sequences.isEmpty()){
                         //finished simulating all
 
+                        if(finalSequences.isEmpty()){
+                            FileLogger.logError("No final sequences, maybe all invalid, fitnessFailed");
+                            fitnessFailed = true;
+                            bestEnd = currentState;
+                            isDone = true;
+                            return;
+                        }
+
                         //sort, get best end
                         Collections.sort(finalSequences);
 
@@ -463,9 +471,7 @@ public class BattleAiController implements Controller {
             FileLogger.logError("cause: " + e.getCause());
             FileLogger.logError("stack trace: " + Arrays.toString(e.getStackTrace()));
 
-            isDone = true;
-            bestEnd = null;
-            initialized = false;
+            currSequenceValid = false;
             //throw new RuntimeException(e);
         }
 

@@ -43,6 +43,7 @@ public class ValueFunctionManager {
         PLAYER_DEATH,
         MIN_MONSTER_HEALTH,
         MAX_MONSTER_HEALTH,
+        MAX_ENEMY_POISON,
         ;
     }
 
@@ -114,6 +115,8 @@ public class ValueFunctionManager {
 
         addValueToMap(Variables.MIN_MONSTER_HEALTH, getMinMonsterHealth());
         addValueToMap(Variables.MAX_MONSTER_HEALTH, getMaxMonsterHealth());
+
+        addValueToMap(Variables.MAX_ENEMY_POISON, getMonsterPowerMax("Poison"));
     }
 
     private static void addValueToMap(Variables v, double d){
@@ -263,6 +266,33 @@ public class ValueFunctionManager {
     public static int getMonsterPowerTotal(String powerId) {
         if (!monsterCacheValid) computeMonsterPowerTotals();
         return monsterPowerTotals.getOrDefault(powerId, 0);
+    }
+
+    private static final Map<String, Integer> monsterPowerMax = new HashMap<>();
+    private static boolean monsterMaxCacheValid = false;
+
+    private static void computeMonsterPowerMax() {
+        monsterPowerMax.clear();
+
+        if (endState == null ||
+                endState.curMapNodeState == null ||
+                endState.curMapNodeState.monsterData == null) {
+            monsterMaxCacheValid = true;
+            return;
+        }
+
+        for (MonsterState m : endState.curMapNodeState.monsterData) {
+            for (PowerState p : m.powers) {
+                monsterPowerMax.merge(p.powerId, p.amount, Math::max);
+            }
+        }
+
+        monsterMaxCacheValid = true;
+    }
+
+    public static int getMonsterPowerMax(String powerId) {
+        if (!monsterMaxCacheValid) computeMonsterPowerMax();
+        return monsterPowerMax.getOrDefault(powerId, 0);
     }
 
     public static int getPlayerEffectiveHP(){

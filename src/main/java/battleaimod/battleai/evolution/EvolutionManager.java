@@ -482,7 +482,13 @@ public class EvolutionManager implements PostUpdateSubscriber {
             // Skip empty lines
             if (line.isEmpty()) continue;
 
-            population.add(new CompatExpression(line));
+            try{
+                population.add(new CompatExpression(line));
+            }
+            catch(Exception e){
+                System.out.println("line failed to parse: " + line);
+                throw new RuntimeException(e);
+            }
         }
     }
 
