@@ -520,11 +520,17 @@ public class EvolutionManager implements PostUpdateSubscriber {
         int enemiesLeft = ValueFunctionManager.getAliveMonsterCount(endState);
         int enemyHealthLeft = ValueFunctionManager.getTotalMonsterHealth(endState);
 
+        double winBonus = playerHealth > 0 ? 1000.0 : 0.0;
 
-        return playerHealth * 1.0   // reward ending health
+        double turnTerm = (playerHealth > 0)
+                ? -turnCount * 2.0   // penalize slow fights
+                : +turnCount * 0.5;  // weakly reward lasting longer if you lose
+
+        return winBonus
+                + playerHealth * 1.0   // reward ending health
                 - healthLost * 5.0   // penalize damage taken
-                - turnCount * 2.0  // penalize slow fights
-                - enemiesLeft * 10.0 // penalize enemies left alive
+                + turnTerm
+                - enemiesLeft * 25.0 // penalize enemies left alive
                 - enemyHealthLeft * 2.0 //penalize remaining enemy health
                 ;
     }
