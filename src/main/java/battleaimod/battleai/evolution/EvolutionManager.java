@@ -529,8 +529,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
         double winBonus = playerHealth > 0 ? 1000.0 : 0.0;
 
         double turnTerm = (playerHealth > 0)
-                ? -turnCount * 2.0   // penalize slow fights
-                : +turnCount * 0.5;  // weakly reward lasting longer if you lose
+                ? -turnCount * 2.0             // penalize slow fights
+                : +Math.sqrt(turnCount) * 2.0; // weakly reward lasting longer if you lose, with diminishing returns
 
         return winBonus
                 + playerHealth * 1.0   // reward ending health

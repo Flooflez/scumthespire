@@ -31,6 +31,8 @@ public class FastActionPatches {
         Settings.ACTION_DUR_MED = 0.0005F;
         Settings.ACTION_DUR_LONG = 0.001F;
         Settings.ACTION_DUR_XLONG = 0.0015F;
+        Settings.SCREEN_SHAKE = false;
+        Settings.DISABLE_EFFECTS = true;
     }
 
     public static void disableFastMode() {
