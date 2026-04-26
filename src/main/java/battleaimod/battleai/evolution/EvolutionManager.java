@@ -24,6 +24,7 @@ import savestate.monsters.MonsterState;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -329,9 +330,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
         File outFile = new File("ipc/ModOutput.txt");
         File inFile = new File("ipc/JeneticsOutput.txt");
 
-        // ----------------------------
-        // 1. WRITE POPULATION TO FILE
-        // ----------------------------
+        //Write file
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
             for (AbstractFitness individual : population) {
                 writer.write("FITNESS=" + individual.getFitnessFitness());
@@ -349,9 +348,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
             throw new RuntimeException("Failed to write population for evolution", e);
         }
 
-        // ----------------------------
-        // 2. WAIT FOR JENETICS RESPONSE
-        // ----------------------------
+        //Read
         while (true) {
             if (inFile.exists()) {
                 try {
@@ -364,6 +361,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
 
                     if (end > 0 && "READY".equals(lines.get(end - 1).trim())) {
                         List<AbstractFitness> newPopulation = new ArrayList<>();
+                        Set<String> seenExpressions = new HashSet<>();
 
                         for (int i = 0; i < end - 1; i++) {
                             String expr = lines.get(i).trim();
@@ -372,15 +370,14 @@ public class EvolutionManager implements PostUpdateSubscriber {
                                 continue;
                             }
 
-                            newPopulation.add(new CompatExpression(expr));
+                            if (seenExpressions.add(expr)) {
+                                newPopulation.add(new CompatExpression(expr));
+                            }
                         }
 
                         population.clear();
                         population.addAll(newPopulation);
 
-                        // ----------------------------
-                        // 3. CLEAR INPUT FILE
-                        // ----------------------------
                         try (BufferedWriter clearWriter = new BufferedWriter(new FileWriter(inFile, false))) {
                             clearWriter.write("");
                         }
@@ -485,19 +482,31 @@ public class EvolutionManager implements PostUpdateSubscriber {
             // Skip empty lines
             if (line.isEmpty()) continue;
 
-            population.add(new CompatExpression(line));
+            try{
+                population.add(new CompatExpression(line));
+            }
+            catch(Exception e){
+                System.out.println("line failed to parse: " + line);
+                throw new RuntimeException(e);
+            }
         }
     }
 
     private void writePopulationToFile(String fileName) {
-        try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(fileName))) {
-            writer.write("Iterations: "+iterations);
+        try (BufferedWriter writer = Files.newBufferedWriter(
+                Paths.get(fileName),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND
+        )) {
+            writer.write("Iterations: " + iterations);
             writer.newLine();
 
             for (AbstractFitness individual : population) {
                 writer.write(individual.toString());
                 writer.newLine();
             }
+
+            writer.newLine(); // optional: separate runs
 
         } catch (IOException e) {
             throw new RuntimeException("Failed to write population to file: " + fileName, e);
@@ -514,16 +523,20 @@ public class EvolutionManager implements PostUpdateSubscriber {
         int playerHealth = endState.getPlayerHealth();
         int healthLost = startingState.getPlayerHealth() - endState.getPlayerHealth();
         int turnCount = endState.turn;
-        int enemiesLeft = (int) endState.curMapNodeState.monsterData.stream()
-                .filter(monster -> monster != null && monster.currentHealth > 0)
-                .count();
+        int enemiesLeft = ValueFunctionManager.getAliveMonsterCount(endState);
         int enemyHealthLeft = ValueFunctionManager.getTotalMonsterHealth(endState);
 
+        double winBonus = playerHealth > 0 ? 1000.0 : 0.0;
 
-        return playerHealth * 1.0   // reward ending health
+        double turnTerm = (playerHealth > 0)
+                ? -turnCount * 2.0   // penalize slow fights
+                : +turnCount * 0.5;  // weakly reward lasting longer if you lose
+
+        return winBonus
+                + playerHealth * 1.0   // reward ending health
                 - healthLost * 5.0   // penalize damage taken
-                - turnCount * 2.0  // penalize slow fights
-                - enemiesLeft * 10.0 // penalize enemies left alive
+                + turnTerm
+                - enemiesLeft * 25.0 // penalize enemies left alive
                 - enemyHealthLeft * 2.0 //penalize remaining enemy health
                 ;
     }

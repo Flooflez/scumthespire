@@ -14,9 +14,11 @@ import io.jenetics.util.ISeq;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -25,11 +27,14 @@ import java.util.stream.Collectors;
  */
 public final class GPEngine {
 
-    public static final double CROSSOVER_PROB = 0.7;
+    public static final double CROSSOVER_PROB = 1.0;
     public static final double MUTATION_PROB = 0.1;
     public static final int TOURNAMENT_K = 3;
     public static final double ELITE_FRACTION = 0.10;
     public static final double PARENT_POOL_FRACTION = 0.50;
+
+    static final int DEDUPE_MUTATE_ATTEMPTS = 3;
+    static final int DEDUPE_RANDOM_ATTEMPTS = 10;
 
     private final ISeq<Op<Double>> operations;
     private final ISeq<Op<Double>> terminals;
@@ -136,7 +141,51 @@ public final class GPEngine {
         while (next.size() < populationSize) {
             next.add(reproduce(pool));
         }
-        return next;
+        return dedupe(next);
+    }
+
+    /**
+     * Replace any individual whose canonical expression matches an earlier one
+     * in the list. First tries up to {@link #DEDUPE_MUTATE_ATTEMPTS} mutations
+     * of the duplicate, then falls back to fresh random trees. Order-stable:
+     * earlier entries (elites, then reproductions in birth order) win
+     * collisions.
+     */
+    List<Genotype<ProgramGene<Double>>> dedupe(
+        List<Genotype<ProgramGene<Double>>> pop
+    ) {
+        Set<String> seen = new HashSet<>();
+        List<Genotype<ProgramGene<Double>>> out = new ArrayList<>(pop.size());
+        for (Genotype<ProgramGene<Double>> g : pop) {
+            if (seen.add(canonical(g))) {
+                out.add(g);
+                continue;
+            }
+            Genotype<ProgramGene<Double>> replacement = g;
+            boolean placed = false;
+            for (int i = 0; i < DEDUPE_MUTATE_ATTEMPTS && !placed; i++) {
+                replacement = applyMutation(replacement);
+                if (seen.add(canonical(replacement))) {
+                    out.add(replacement);
+                    placed = true;
+                }
+            }
+            for (int i = 0; i < DEDUPE_RANDOM_ATTEMPTS && !placed; i++) {
+                Genotype<ProgramGene<Double>> fresh = randomTrees(1).get(0);
+                if (seen.add(canonical(fresh))) {
+                    out.add(fresh);
+                    placed = true;
+                }
+            }
+            if (!placed) {
+                out.add(g);
+            }
+        }
+        return out;
+    }
+
+    private static String canonical(Genotype<ProgramGene<Double>> g) {
+        return MathExprIO.serialize(g.gene().toTreeNode());
     }
 
     private Genotype<ProgramGene<Double>> reproduce(List<Scored> pool) {

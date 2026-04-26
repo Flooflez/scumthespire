@@ -26,7 +26,7 @@ public class ValueFunctionManager {
         MONSTERS_REMAINING,
         SUM_MONSTER_HEALTH,
         AVG_MONSTER_HEALTH,
-        POWERS_PLAYED,
+        POWERS_PLAYED, //now is the sum of energy cost of powers played
         SUM_ENEMY_POISON,
         SUM_ENEMY_WEAK,
         SUM_ENEMY_VULNERABLE,
@@ -40,7 +40,10 @@ public class ValueFunctionManager {
         HAND_SPACE_CLOG,
         SUM_CURSE_EXHAUSTED,
         SUM_CARD_EXHAUSTED,
-        PLAYER_DEATH
+        PLAYER_DEATH,
+        MIN_MONSTER_HEALTH,
+        MAX_MONSTER_HEALTH,
+        MAX_ENEMY_POISON,
         ;
     }
 
@@ -88,7 +91,7 @@ public class ValueFunctionManager {
 
         addValueToMap(Variables.DAMAGE_RECEIVED, getPlayerDamage());
 
-        addValueToMap(Variables.POWERS_PLAYED, getNumberPowersPlayed());
+        addValueToMap(Variables.POWERS_PLAYED, getNumberPowersPlayedCost());
 
         addValueToMap(Variables.SUM_ENEMY_POISON, getMonsterPowerTotal("Poison"));
         addValueToMap(Variables.SUM_ENEMY_WEAK, getMonsterPowerTotal("Weakened"));
@@ -109,6 +112,11 @@ public class ValueFunctionManager {
         addValueToMap(Variables.SUM_CURSE_EXHAUSTED, getSumCurseExhausted());
 
         addValueToMap(Variables.PLAYER_DEATH, getPlayerDeath());
+
+        addValueToMap(Variables.MIN_MONSTER_HEALTH, getMinMonsterHealth());
+        addValueToMap(Variables.MAX_MONSTER_HEALTH, getMaxMonsterHealth());
+
+        addValueToMap(Variables.MAX_ENEMY_POISON, getMonsterPowerMax("Poison"));
     }
 
     private static void addValueToMap(Variables v, double d){
@@ -119,16 +127,20 @@ public class ValueFunctionManager {
      * Counts the number of monsters currently alive.
      * Awakened One still counts as alive before its second form, even at 0 HP.
      */
-    public static int getAliveMonsterCount() {
-        if (endState == null ||
-                endState.curMapNodeState == null ||
-                endState.curMapNodeState.monsterData == null) {
+    public static int getAliveMonsterCount(SaveState state) {
+        if (state == null ||
+                state.curMapNodeState == null ||
+                state.curMapNodeState.monsterData == null) {
             return 0;
         }
 
-        return (int) endState.curMapNodeState.monsterData.stream()
+        return (int) state.curMapNodeState.monsterData.stream()
                 .filter(monster -> monster != null && isMonsterEffectivelyAlive(monster))
                 .count();
+    }
+
+    public static int getAliveMonsterCount() {
+        return getAliveMonsterCount(endState);
     }
 
     private static boolean isMonsterEffectivelyAlive(MonsterState monster) {
@@ -193,8 +205,8 @@ public class ValueFunctionManager {
 
 
     public static int getTotalDamageDealt() {
-        return ValueFunctions.getTotalMonsterHealth(startState)
-                - ValueFunctions.getTotalMonsterHealth(endState);
+        return ValueFunctionManager.getTotalMonsterHealth(startState)
+                - ValueFunctionManager.getTotalMonsterHealth(endState);
     }
 
     public static int getPlayerDamage() {
@@ -205,11 +217,11 @@ public class ValueFunctionManager {
         return valueMap.getOrDefault(var, 0.0);
     }
 
-    public static int getNumberPowersPlayed(){
+    public static int getNumberPowersPlayedCost(){
         int sum = 0;
         for(AbstractCard c : cardsPlayed){
             if(c.type == AbstractCard.CardType.POWER){
-                sum++;
+                sum += c.cost;
             }
         }
         return sum;
@@ -254,6 +266,33 @@ public class ValueFunctionManager {
     public static int getMonsterPowerTotal(String powerId) {
         if (!monsterCacheValid) computeMonsterPowerTotals();
         return monsterPowerTotals.getOrDefault(powerId, 0);
+    }
+
+    private static final Map<String, Integer> monsterPowerMax = new HashMap<>();
+    private static boolean monsterMaxCacheValid = false;
+
+    private static void computeMonsterPowerMax() {
+        monsterPowerMax.clear();
+
+        if (endState == null ||
+                endState.curMapNodeState == null ||
+                endState.curMapNodeState.monsterData == null) {
+            monsterMaxCacheValid = true;
+            return;
+        }
+
+        for (MonsterState m : endState.curMapNodeState.monsterData) {
+            for (PowerState p : m.powers) {
+                monsterPowerMax.merge(p.powerId, p.amount, Math::max);
+            }
+        }
+
+        monsterMaxCacheValid = true;
+    }
+
+    public static int getMonsterPowerMax(String powerId) {
+        if (!monsterMaxCacheValid) computeMonsterPowerMax();
+        return monsterPowerMax.getOrDefault(powerId, 0);
     }
 
     public static int getPlayerEffectiveHP(){
@@ -334,5 +373,57 @@ public class ValueFunctionManager {
 
     public static int getPlayerDeath(){
         return endState.playerState.currentHealth <= 0 ? 1 : 0;
+    }
+
+    public static int getMinMonsterHealth() {
+        return getMinMonsterHealth(endState);
+    }
+
+    public static int getMinMonsterHealth(SaveState s) {
+        if (s == null ||
+                s.curMapNodeState == null ||
+                s.curMapNodeState.monsterData == null ||
+                s.curMapNodeState.monsterData.isEmpty()) {
+            return 0;
+        }
+
+        return s.curMapNodeState.monsterData.stream()
+                .map(monster -> {
+                    if (monster.powers.stream()
+                            .anyMatch(power -> power.powerId.equals("Barricade"))) {
+                        return monster.currentHealth + monster.currentBlock;
+                    } else if ("AwakenedOne".equals(monster.id) && isAwakenedOneNotAwakened(monster)) {
+                        return monster.currentHealth + monster.maxHealth;
+                    }
+                    return monster.currentHealth;
+                })
+                .min(Integer::compareTo)
+                .orElse(0);
+    }
+
+    public static int getMaxMonsterHealth() {
+        return getMaxMonsterHealth(endState);
+    }
+
+    public static int getMaxMonsterHealth(SaveState s) {
+        if (s == null ||
+                s.curMapNodeState == null ||
+                s.curMapNodeState.monsterData == null ||
+                s.curMapNodeState.monsterData.isEmpty()) {
+            return 0;
+        }
+
+        return s.curMapNodeState.monsterData.stream()
+                .map(monster -> {
+                    if (monster.powers.stream()
+                            .anyMatch(power -> power.powerId.equals("Barricade"))) {
+                        return monster.currentHealth + monster.currentBlock;
+                    } else if ("AwakenedOne".equals(monster.id) && isAwakenedOneNotAwakened(monster)) {
+                        return monster.currentHealth + monster.maxHealth;
+                    }
+                    return monster.currentHealth;
+                })
+                .max(Integer::compareTo)
+                .orElse(0);
     }
 }
