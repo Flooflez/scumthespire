@@ -18,6 +18,7 @@ import basemod.patches.com.megacrit.cardcrawl.helpers.PotionLibrary.PotionHelper
 import battleaimod.battleai.BattleAiController;
 import battleaimod.battleai.CommandRunnerController;
 import battleaimod.battleai.evolution.EvolutionManager;
+import battleaimod.battleai.evolution.FitnessFunctionEvaluator;
 import battleaimod.battleai.playorder.BadCardsLastHeuristic;
 import battleaimod.battleai.playorder.DefectPlayOrder;
 import battleaimod.battleai.playorder.DiscardOrder;
@@ -125,6 +126,8 @@ public class BattleAiMod implements PostInitializeSubscriber, PostUpdateSubscrib
 
         evolutionManager = new EvolutionManager();
         BaseMod.subscribe(evolutionManager);
+
+        BaseMod.subscribe(new FitnessFunctionEvaluator());
 
         BaseMod.logger.log(Level.INFO, "BattleAIMod constructor");
 

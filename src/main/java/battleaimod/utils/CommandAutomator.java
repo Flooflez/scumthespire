@@ -31,6 +31,12 @@ public class CommandAutomator {
         readCommandsFromFile("FightCommands.txt", fightCommands);
     }
 
+    public static void readCommandsEval(){
+        System.out.println("reading commands from files...");
+        readCommandsFromFile("InitCommands.txt", initCommands);
+        readCommandsFromFile("EvalFightCommands.txt", fightCommands);
+    }
+
     public static void restartCurrentFight(){
         System.out.println("Running fight command");
         runCommand(fightCommands.peek());
