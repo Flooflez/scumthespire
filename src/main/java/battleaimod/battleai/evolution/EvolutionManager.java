@@ -77,6 +77,8 @@ public class EvolutionManager implements PostUpdateSubscriber {
             return;
         }
 
+        if(!simRunning) return;
+
         if(waitingForDeckUpdate){
             if(checkDeckUpdated()){
                 toggleFast(true);
@@ -103,6 +105,7 @@ public class EvolutionManager implements PostUpdateSubscriber {
                 waitingForCombatReset = false;
                 startNextGenCombat();
             }
+            return;
         }
 
         if(waitingForCombatToBattle){
