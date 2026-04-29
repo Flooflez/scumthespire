@@ -10,6 +10,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
+import static fitnessevolution.Main.appendLog;
+
 /**
  * File-IO for the Option B (mod-driven one-shot) handshake.
  *
@@ -65,6 +67,7 @@ public final class JeneticsIO {
             sb.append(expr).append('\n');
         }
         Files.writeString(outFile, sb.toString());
+        appendLog(sb.toString());
         return canonical;
     }
 

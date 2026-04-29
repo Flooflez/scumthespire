@@ -151,7 +151,7 @@ public final class Main {
         return new CliArgs(runId, baseSeed, poll, pollIntervalMs, rootDir);
     }
 
-    private static void appendLog(String message) throws IOException {
+    public static void appendLog(String message) throws IOException {
         Path logFile = Config.evolutionLog();
         Path parent = logFile.getParent();
         if (parent != null) {

@@ -42,6 +42,10 @@ public class FitnessFunctionEvaluator implements PostUpdateSubscriber {
     private AbstractFitness fitnessFunction;
     private FitnessType fitnessType;
 
+    private int combatsRun = 0;
+    private int combatsWon = 0;
+    private double totalWinningFitness = 0.0;
+
     private final boolean ALLOW_FAST_MODE = true;
     public boolean combatFailed = false;
     private final double VERY_BAD_SCORE = -100000000;
@@ -63,7 +67,7 @@ public class FitnessFunctionEvaluator implements PostUpdateSubscriber {
             return;
         }
 
-        if(!simRunning) return;
+        if (!simRunning) return;
 
         if (waitingForDeckUpdate) {
             if (checkDeckUpdated()) {
@@ -139,6 +143,9 @@ public class FitnessFunctionEvaluator implements PostUpdateSubscriber {
 
     private void initEvaluation() {
         combatFailed = false;
+        combatsRun = 0;
+        combatsWon = 0;
+        totalWinningFitness = 0.0;
 
         readFitnessFunction(FITNESS_FILE);
         writeFitnessFunctionForAgent();
@@ -209,6 +216,7 @@ public class FitnessFunctionEvaluator implements PostUpdateSubscriber {
         }
         else {
             System.out.println("Finished all simulations");
+            writeSummary();
             simRunning = false;
             toggleFast(false);
         }
@@ -242,14 +250,20 @@ public class FitnessFunctionEvaluator implements PostUpdateSubscriber {
                 ? VERY_BAD_SCORE
                 : calculateFitnessFitness(endState);
 
+        combatsRun++;
+
+        if (won) {
+            combatsWon++;
+            totalWinningFitness += fitnessFitness;
+        }
+
         try (BufferedWriter writer = Files.newBufferedWriter(
                 Paths.get(OUTPUT_FILE),
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
         )) {
             writer.write(
-                    fitnessType.name() + ","
-                            + csv(CommandAutomator.getCurrentFight()) + ","
+                    csv(CommandAutomator.getCurrentFight()) + ","
                             + fitnessFitness + ","
                             + turnCount + ","
                             + playerHealth + ","
@@ -271,6 +285,7 @@ public class FitnessFunctionEvaluator implements PostUpdateSubscriber {
         }
         else {
             System.out.println("Finished evaluating fitness function");
+            writeSummary();
             simRunning = false;
             toggleFast(false);
         }
@@ -348,13 +363,36 @@ public class FitnessFunctionEvaluator implements PostUpdateSubscriber {
         try {
             Files.write(
                     Paths.get(OUTPUT_FILE),
-                    ("fitnessType,combat,fitnessFitness,turnCount,playerHealth,enemiesRemaining,enemyHealthSum,won\n").getBytes(),
+                    ("combat,fitnessFitness,turnCount,playerHealth,enemiesRemaining,enemyHealthSum,won\n").getBytes(),
                     StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING
             );
         }
         catch (IOException e) {
             throw new RuntimeException("Failed to initialize output file", e);
+        }
+    }
+
+    private void writeSummary() {
+        double averageWinningFitness = combatsWon == 0
+                ? 0.0
+                : totalWinningFitness / combatsWon;
+
+        try (BufferedWriter writer = Files.newBufferedWriter(
+                Paths.get(OUTPUT_FILE),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND
+        )) {
+            writer.newLine();
+            writer.write("Summary");
+            writer.newLine();
+            writer.write("Combats won: " + combatsWon + "/" + combatsRun);
+            writer.newLine();
+            writer.write("Average fitness when winning: " + averageWinningFitness);
+            writer.newLine();
+        }
+        catch (IOException e) {
+            throw new RuntimeException("Failed to write evaluation summary", e);
         }
     }
 
